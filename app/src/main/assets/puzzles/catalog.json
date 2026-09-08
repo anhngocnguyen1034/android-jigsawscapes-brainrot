@@ -1,0 +1,10 @@
+{
+  "version": 2,
+  "puzzles": [
+    { "id": "tralalero", "title": "Tralalero Tralala", "category": "brainrot", "assetPath": "puzzles/tralalero.jpg" },
+    { "id": "bombardiro", "title": "Bombardiro Crocodilo", "category": "brainrot", "assetPath": "puzzles/bombardiro.jpg" },
+    { "id": "tung_sahur", "title": "Tung Tung Sahur", "category": "brainrot", "assetPath": "puzzles/tung_sahur.jpg" },
+    { "id": "cozy_room", "title": "Cozy Dog Room", "category": "animal", "assetPath": "puzzles/cozy_room.jpg" },
+    { "id": "autumn_garden", "title": "Autumn Garden", "category": "nature", "assetPath": "puzzles/autumn_garden.jpg", "premium": true }
+  ]
+}

@@ -1,0 +1,29 @@
+<resources>
+    <string name="app_name">Jigsaw Puzzle Brainrot</string>
+
+    <!-- Home -->
+    <string name="home_title">Chọn hình</string>
+    <string name="action_settings">Cài đặt</string>
+    <string name="action_back">Quay lại</string>
+
+    <!-- Game -->
+    <string name="action_pause">Tạm dừng</string>
+    <string name="action_resume">Tiếp tục</string>
+    <string name="action_new_game">Ván mới</string>
+    <string name="game_progress">Đã ghép %1$d/%2$d mảnh</string>
+    <string name="action_hint">Gợi ý (%1$d)</string>
+    <string name="action_pick_image">Ảnh của bạn</string>
+    <string name="game_solved">Hoàn thành!</string>
+    <string name="action_place_piece">Đưa mảnh vào bảng</string>
+    <string name="action_clean_pieces">Dọn mảnh rời về khay</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Cài đặt</string>
+    <string name="settings_dark_mode">Chế độ tối</string>
+    <string name="settings_sound">Âm thanh</string>
+    <string name="settings_vibration">Rung</string>
+
+    <!-- Errors -->
+    <string name="error_load_puzzles">Không tải được danh sách hình</string>
+    <string name="error_puzzle_not_found">Không tìm thấy hình này</string>
+</resources>
