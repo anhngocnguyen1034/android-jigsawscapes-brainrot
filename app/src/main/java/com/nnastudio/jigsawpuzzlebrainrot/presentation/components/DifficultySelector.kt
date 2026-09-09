@@ -17,12 +17,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnGradients
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 
 @Composable
 fun DifficultySelector(
@@ -69,21 +66,5 @@ private fun DifficultyChip(
             style = MaterialTheme.typography.labelSmall,
             color = if (selected) Color.White else MaterialTheme.colorScheme.onSurface
         )
-    }
-}
-
-@Preview(name = "Light")
-@Composable
-private fun DifficultySelectorLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        DifficultySelector(selected = Difficulty.MEDIUM, onSelect = {})
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun DifficultySelectorDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        DifficultySelector(selected = Difficulty.MEDIUM, onSelect = {})
     }
 }

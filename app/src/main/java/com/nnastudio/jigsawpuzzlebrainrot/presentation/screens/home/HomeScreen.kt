@@ -23,17 +23,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.AnhnnGradientButton
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.DifficultySelector
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.PuzzleCard
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.HomeUiState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.HomeViewModel
 import com.nnastudio.jigsawpuzzlebrainrot.utils.formatAsClock
@@ -130,33 +127,5 @@ private fun HomeContent(
                 }
             }
         }
-    }
-}
-
-@Preview(name = "Light")
-@Composable
-private fun HomeContentLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        HomeContent(
-            uiState = HomeUiState(isLoading = false),
-            onDifficultySelected = {},
-            onPuzzleClick = {},
-            onPickImageClick = {},
-            onSettingsClick = {}
-        )
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun HomeContentDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        HomeContent(
-            uiState = HomeUiState(isLoading = false),
-            onDifficultySelected = {},
-            onPuzzleClick = {},
-            onPickImageClick = {},
-            onSettingsClick = {}
-        )
     }
 }

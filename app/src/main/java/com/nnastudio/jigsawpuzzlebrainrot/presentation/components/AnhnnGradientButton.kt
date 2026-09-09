@@ -15,11 +15,8 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnGradients
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 
 /** Nut chinh cua app, dung gradient tim Anhnn. Touch target toi thieu 48dp. */
 @Composable
@@ -44,21 +41,5 @@ fun AnhnnGradientButton(
             style = MaterialTheme.typography.titleLarge,
             color = Color.White
         )
-    }
-}
-
-@Preview(name = "Light")
-@Composable
-private fun AnhnnGradientButtonLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        AnhnnGradientButton(text = "Choi ngay", onClick = {})
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun AnhnnGradientButtonDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        AnhnnGradientButton(text = "Choi ngay", onClick = {})
     }
 }

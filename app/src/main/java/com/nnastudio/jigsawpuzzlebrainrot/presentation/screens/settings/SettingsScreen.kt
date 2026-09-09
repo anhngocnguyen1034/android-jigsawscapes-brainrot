@@ -16,7 +16,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -24,7 +23,6 @@ import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.AppSettings
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.AnhnnThemeSwitch
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.SettingsViewModel
 
 @Composable
@@ -96,35 +94,5 @@ private fun SettingRow(
     ) {
         Text(text = label, style = MaterialTheme.typography.bodyLarge)
         control()
-    }
-}
-
-@Preview(name = "Light")
-@Composable
-private fun SettingsContentLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        SettingsContent(
-            settings = AppSettings(),
-            isDarkTheme = false,
-            onThemeToggle = {},
-            onSoundChanged = {},
-            onVibrationChanged = {},
-            onBack = {}
-        )
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun SettingsContentDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        SettingsContent(
-            settings = AppSettings(themeMode = ThemeMode.DARK),
-            isDarkTheme = true,
-            onThemeToggle = {},
-            onSoundChanged = {},
-            onVibrationChanged = {},
-            onBack = {}
-        )
     }
 }

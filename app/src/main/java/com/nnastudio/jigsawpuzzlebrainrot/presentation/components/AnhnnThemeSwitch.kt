@@ -25,10 +25,8 @@ import androidx.compose.ui.graphics.drawscope.Fill
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.semantics.Role
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 
 /**
@@ -160,20 +158,4 @@ private fun DrawScope.drawSparkle(center: Offset, size: Float, color: Color) {
         quadraticTo(center.x, center.y, center.x, center.y - size)
     }
     drawPath(path, color)
-}
-
-@Preview(name = "Light")
-@Composable
-private fun AnhnnThemeSwitchLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        AnhnnThemeSwitch(isDarkTheme = false, onToggle = {})
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun AnhnnThemeSwitchDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        AnhnnThemeSwitch(isDarkTheme = true, onToggle = {})
-    }
 }
