@@ -4,7 +4,6 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
-import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
@@ -44,9 +43,6 @@ private val BOARD_CORNER = 12.dp
 
 /** Zoom ban co toi da: du to de ghep luoi 8x8 tren may nho, chua den muc mat huong nhin chung. */
 private const val MAX_BOARD_ZOOM = 3f
-
-/** Muc zoom cua mot lan cham dup. */
-private const val DOUBLE_TAP_ZOOM = 2f
 
 /**
  * Zoom la phong to ca vung choi (khung ban co lan cho dau manh roi hai ben ngoai khung), nen
@@ -168,21 +164,6 @@ fun JigsawBoardView(
                         pan = nextPan
                     }
                 }
-            }
-            .pointerInput(Unit) {
-                // Cham hai lan: phong to nhanh quanh diem cham, cham lai thi ve vua khung.
-                detectTapGestures(onDoubleTap = { position ->
-                    applyZoom(
-                        focus = position,
-                        zoomChange = if (zoom > 1f) 1f / zoom else DOUBLE_TAP_ZOOM,
-                        panChange = Offset.Zero,
-                        zoom = zoom,
-                        pan = pan
-                    ) { nextZoom, nextPan ->
-                        zoom = nextZoom
-                        pan = nextPan
-                    }
-                })
             }
     ) {
         val density = LocalDensity.current
