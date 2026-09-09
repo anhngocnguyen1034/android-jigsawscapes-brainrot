@@ -2,6 +2,7 @@ package com.nnastudio.jigsawpuzzlebrainrot.data.repository
 
 import com.nnastudio.jigsawpuzzlebrainrot.data.datasource.local.SettingsDataSource
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.AppSettings
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -31,5 +32,9 @@ class SettingsRepositoryImpl @Inject constructor(
 
     override suspend fun setLanguageCode(code: String) {
         runCatching { settingsDataSource.setLanguageCode(code) }
+    }
+
+    override suspend fun setBoardBackground(background: BoardBackground) {
+        runCatching { settingsDataSource.setBoardBackground(background) }
     }
 }

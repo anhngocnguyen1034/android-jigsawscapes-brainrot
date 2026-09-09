@@ -95,6 +95,12 @@ data class PuzzlePlayState(
 
     val placedCount: Int get() = placements.values.count { it.isPlaced }
 
+    /**
+     * So moi noi da ghep dung: cu hai khoi hut vao nhau la so khoi giam mot. Manh con trong
+     * khay tinh la mot khoi rieng nen dua manh ra khoi khay khong tu lam doi so nay.
+     */
+    val joinCount: Int get() = placements.size - groups.values.distinct().size
+
     /** Cac manh con trong khay, theo thu tu hien thi. */
     val trayPieces: List<JigsawPiece>
         get() {

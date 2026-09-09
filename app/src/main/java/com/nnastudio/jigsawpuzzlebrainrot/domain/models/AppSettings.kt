@@ -7,7 +7,9 @@ data class AppSettings(
     val themeMode: ThemeMode = ThemeMode.SYSTEM,
     val soundEnabled: Boolean = true,
     val vibrationEnabled: Boolean = true,
-    val languageCode: String = "en"
+    val languageCode: String = "en",
+    /** Nen ban choi nguoi choi da chon, xem [BoardBackground]. */
+    val boardBackground: BoardBackground = BoardBackground.DEFAULT
 )
 
 enum class ThemeMode(val value: String) {

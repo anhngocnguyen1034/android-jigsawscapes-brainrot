@@ -6,6 +6,7 @@ import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -23,6 +24,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -61,6 +63,7 @@ import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nnastudio.jigsawpuzzlebrainrot.R
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceOffset
@@ -72,9 +75,10 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTrayView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TAB_RATIO
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.trayBoardSizePx
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.color
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.labelRes
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameUiState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameViewModel
-import com.nnastudio.jigsawpuzzlebrainrot.utils.formatAsClock
 import com.nnastudio.jigsawpuzzlebrainrot.utils.toImageBitmap
 import kotlin.math.roundToInt
 
@@ -99,6 +103,8 @@ fun GameScreen(
         onCleanRequested = viewModel::onCleanRequested,
         onCleanPieceLanded = viewModel::onCleanPieceLanded,
         onTogglePause = viewModel::onTogglePause,
+        onBackgroundSelected = viewModel::onBoardBackgroundSelected,
+        onToggleEdgePiecesOnly = viewModel::onToggleEdgePiecesOnly,
         onRestart = viewModel::startNewGame,
         onBack = onBack
     )
@@ -119,11 +125,14 @@ private fun GameContent(
     onCleanRequested: () -> Unit,
     onCleanPieceLanded: (Int) -> Unit,
     onTogglePause: () -> Unit,
+    onBackgroundSelected: (BoardBackground) -> Unit,
+    onToggleEdgePiecesOnly: () -> Unit,
     onRestart: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var showPeek by remember { mutableStateOf(false) }
+    var showBackgrounds by remember { mutableStateOf(false) }
     // Canh khung ghep, do trong PlayArea: anh mau zoom to nhat bang dung khung nay.
     var boardSizePx by remember { mutableFloatStateOf(0f) }
     val image = remember(uiState.artwork) { uiState.artwork?.toImageBitmap() }
@@ -149,13 +158,38 @@ private fun GameContent(
                     )
                 }
                 Text(
-                    text = uiState.elapsedSeconds.formatAsClock(),
+                    text = stringResource(R.string.game_score, uiState.score),
                     style = MaterialTheme.typography.titleLarge
                 )
                 Row {
                     TextButton(onClick = onHintRequested, enabled = uiState.canUseHint) {
                         Text(text = stringResource(R.string.action_hint, uiState.hintsLeft))
                     }
+                }
+                Button(
+                    onClick = onToggleEdgePiecesOnly,
+                    colors = if (uiState.edgePiecesOnly) {
+                        ButtonDefaults.buttonColors()
+                    } else {
+                        ButtonDefaults.filledTonalButtonColors()
+                    }
+                ) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_edge_pieces),
+                        contentDescription = stringResource(
+                            if (uiState.edgePiecesOnly) {
+                                R.string.action_show_all_pieces
+                            } else {
+                                R.string.action_show_edge_pieces
+                            }
+                        )
+                    )
+                }
+                Button(onClick = { showBackgrounds = !showBackgrounds }) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_background),
+                        contentDescription = stringResource(R.string.action_change_background)
+                    )
                 }
                 Button(onClick = { showPeek = !showPeek }) {
                     Icon(
@@ -167,6 +201,14 @@ private fun GameContent(
                         )
                     )
                 }
+            }
+
+            if (showBackgrounds) {
+                BackgroundPicker(
+                    selected = uiState.boardBackground,
+                    onSelected = onBackgroundSelected,
+                    modifier = Modifier.padding(top = 4.dp)
+                )
             }
 
             when {
@@ -217,7 +259,13 @@ private fun GameContent(
                         onTrayPieceDropped = onTrayPieceDropped,
                         onPlayAreaMeasured = onPlayAreaMeasured,
                         onBoardSizeMeasured = { boardSizePx = it },
-                        modifier = Modifier.weight(1f)
+                        edgePiecesOnly = uiState.edgePiecesOnly,
+                        modifier = Modifier
+                            .weight(1f)
+                            .background(
+                                color = uiState.boardBackground.color(),
+                                shape = RoundedCornerShape(16.dp)
+                            )
                     )
 
                     AnhnnGradientButton(
@@ -237,6 +285,48 @@ private fun GameContent(
                 image = image,
                 maxSize = with(LocalDensity.current) { boardSizePx.toDp() },
                 onClose = { showPeek = false }
+            )
+        }
+    }
+}
+
+/** Canh mot o mau trong bang chon nen. */
+private val SWATCH_SIZE = 36.dp
+
+/**
+ * Bang chon nen ban choi: moi lua chon la mot o mau, o dang dung co vien day. Chon la doi
+ * ngay va duoc ghi vao cai dat nen van sau van giu nen do.
+ */
+@Composable
+private fun BackgroundPicker(
+    selected: BoardBackground,
+    onSelected: (BoardBackground) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        BoardBackground.entries.forEach { background ->
+            val isSelected = background == selected
+            Box(
+                modifier = Modifier
+                    .size(SWATCH_SIZE)
+                    .clip(CircleShape)
+                    .background(background.color())
+                    .border(
+                        width = if (isSelected) 3.dp else 1.dp,
+                        color = if (isSelected) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            AnhnnTheme.extraColors.border
+                        },
+                        shape = CircleShape
+                    )
+                    .clickable(onClickLabel = stringResource(background.labelRes)) {
+                        onSelected(background)
+                    }
             )
         }
     }
@@ -350,6 +440,8 @@ private fun PlayArea(
     onTrayPieceDropped: (Int, PieceOffset) -> Unit,
     onPlayAreaMeasured: (PieceBounds) -> Unit,
     onBoardSizeMeasured: (Float) -> Unit,
+    /** Chi hien manh cua 4 canh trong khay. */
+    edgePiecesOnly: Boolean,
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -381,7 +473,21 @@ private fun PlayArea(
         y = (position.y - boardOrigin.y - boardSizePx / rows / 2) / boardSizePx
     )
 
-    /** Cho chen trong danh sach khay ung voi diem tha: truoc hay sau manh dang o do. */
+    // Khay co the dang loc (chi manh vien): danh sach hien ra khac thu tu that cua khay nen
+    // moi cho chen doc tu layout phai doi lai sang thu tu that truoc khi bao ve ViewModel.
+    val trayPieces = remember(playState.trayOrder, playState.puzzle, edgePiecesOnly) {
+        val all = playState.trayPieces
+        if (edgePiecesOnly) all.filter { playState.isEdgePiece(it.id) } else all
+    }
+
+    /** Cho chen trong khay that, tinh tu cho chen [visibleIndex] trong danh sach dang hien. */
+    fun trayOrderIndexOf(visibleIndex: Int): Int {
+        if (trayPieces.size == playState.trayOrder.size) return visibleIndex
+        val pieceId = trayPieces.getOrNull(visibleIndex)?.id ?: return playState.trayOrder.size
+        return playState.trayOrder.indexOf(pieceId).coerceAtLeast(0)
+    }
+
+    /** Cho chen trong danh sach dang hien ung voi diem tha: truoc hay sau manh dang o do. */
     fun trayIndexAt(x: Float): Int {
         val localX = x - (trayOrigin?.x ?: 0f)
         val visible = trayListState.layoutInfo.visibleItemsInfo
@@ -411,7 +517,7 @@ private fun PlayArea(
                     // Tha ngon tay xuong khay = tra manh ve danh sach, dung cho vua tha.
                     val overTray = trayOrigin?.let { finger.y >= it.y } == true
                     if (overTray && playState.canReturnToTray(pieceId)) {
-                        onPieceReturnedToTray(pieceId, trayIndexAt(finger.x))
+                        onPieceReturnedToTray(pieceId, trayOrderIndexOf(trayIndexAt(finger.x)))
                     } else {
                         onPieceDragEnd(pieceId, dx, dy)
                     }
@@ -424,6 +530,7 @@ private fun PlayArea(
             // Khay luon hien, ke ca khi trong: no la cho de tha manh tu ban co ve.
             JigsawTrayView(
                 playState = playState,
+                pieces = trayPieces,
                 image = image,
                 draggedPieceId = trayDragPieceId,
                 hintPieceId = hintPieceId,
@@ -442,7 +549,7 @@ private fun PlayArea(
                         onTrayPieceDropped(pieceId, boardPositionOf(position))
                     } else if (pieceId != null) {
                         // Tha lai trong khay = doi cho: manh ve dung cho vua tha.
-                        onTrayPieceMoved(pieceId, trayIndexAt(position.x))
+                        onTrayPieceMoved(pieceId, trayOrderIndexOf(trayIndexAt(position.x)))
                     }
                 },
                 modifier = Modifier

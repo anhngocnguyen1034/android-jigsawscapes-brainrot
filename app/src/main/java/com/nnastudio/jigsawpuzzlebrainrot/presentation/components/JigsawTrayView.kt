@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import kotlin.math.roundToInt
@@ -46,7 +47,8 @@ import kotlin.math.roundToInt
  * Khay manh ghep nam ngang phia duoi ban co, cuon ngang.
  *
  * Khay luon hien du da het manh: keo mot manh roi tu tren xuong day la manh tro ve khay,
- * chen dung cho vua tha trong danh sach.
+ * chen dung cho vua tha trong danh sach. Danh sach hien ra do nguoi goi truyen vao ([pieces])
+ * nen man hinh loc bot duoc, con thu tu that cua khay van nam trong [playState].
  *
  * Cho cua manh vua nhac len thu dan ve 0 (khong bien mat ngay) va no lai neu manh duoc tha
  * xuong khay, con cac manh xung quanh truot sang cho moi; nho vay keo ra / them lai khong
@@ -62,6 +64,11 @@ import kotlin.math.roundToInt
 @Composable
 fun JigsawTrayView(
     playState: PuzzlePlayState,
+    /**
+     * Cac manh hien trong khay, theo dung thu tu hien thi. Thuong la
+     * [PuzzlePlayState.trayPieces], nhung man hinh co the loc bot (vi du chi hien manh vien).
+     */
+    pieces: List<JigsawPiece>,
     image: ImageBitmap,
     draggedPieceId: Int?,
     /** Manh dang bay tu khay vao o cua no (goi y): cho cu trong khay de trong. */
@@ -95,7 +102,7 @@ fun JigsawTrayView(
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        items(items = playState.trayPieces, key = { it.id }) { piece ->
+        items(items = pieces, key = { it.id }) { piece ->
             val coordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
             // Manh dang duoc keo / dang bay hien o lop noi ben tren: cho cu trong khay thu
             // dan ve 0 cho cac manh phia sau don vao, tha lai trong khay thi cho no ra.

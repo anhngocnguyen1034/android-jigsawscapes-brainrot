@@ -43,7 +43,8 @@ class SavedGameTest {
             seed = SEED,
             playState = playing,
             elapsedSeconds = 42,
-            hintsLeft = 2
+            hintsLeft = 2,
+            score = 130
         )
 
         val raw = json.encodeToString(SavedGameDto.serializer(), saved.toDto())
@@ -57,6 +58,7 @@ class SavedGameTest {
         assertEquals(playing.moves, state.moves)
         assertEquals(42, restored.elapsedSeconds)
         assertEquals(2, restored.hintsLeft)
+        assertEquals(130, restored.score)
     }
 
     /** Ban luu cua do kho khac khong dung vao bo manh nay: phai bi bo, khong duoc dung buoc. */
@@ -68,7 +70,8 @@ class SavedGameTest {
             seed = SEED,
             playState = prepareTray(easy, Random(SEED)),
             elapsedSeconds = 0,
-            hintsLeft = 3
+            hintsLeft = 3,
+            score = 0
         )
 
         val hard = generate(image, Difficulty.HARD, Random(SEED))

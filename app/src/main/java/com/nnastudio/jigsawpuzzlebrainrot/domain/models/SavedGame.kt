@@ -19,7 +19,8 @@ data class SavedGame(
     val trayOrder: List<Int>,
     val moves: Int,
     val elapsedSeconds: Int,
-    val hintsLeft: Int
+    val hintsLeft: Int,
+    val score: Int
 ) {
 
     /**
@@ -52,7 +53,8 @@ data class SavedGame(
             seed: Long,
             playState: PuzzlePlayState,
             elapsedSeconds: Int,
-            hintsLeft: Int
+            hintsLeft: Int,
+            score: Int
         ) = SavedGame(
             puzzleId = puzzleId,
             difficulty = playState.puzzle.difficulty,
@@ -62,7 +64,8 @@ data class SavedGame(
             trayOrder = playState.trayOrder,
             moves = playState.moves,
             elapsedSeconds = elapsedSeconds,
-            hintsLeft = hintsLeft
+            hintsLeft = hintsLeft,
+            score = score
         )
     }
 }

@@ -14,6 +14,16 @@
     <string name="action_hint">Gợi ý (%1$d)</string>
     <string name="action_pick_image">Ảnh của bạn</string>
     <string name="game_solved">Hoàn thành!</string>
+    <string name="game_score">%1$d điểm</string>
+    <string name="action_change_background">Đổi hình nền</string>
+    <string name="action_show_edge_pieces">Chỉ hiện mảnh viền</string>
+    <string name="action_show_all_pieces">Hiện lại tất cả mảnh</string>
+    <string name="background_default">Mặc định</string>
+    <string name="background_cream">Giấy kem</string>
+    <string name="background_wood">Gỗ</string>
+    <string name="background_grey">Xám</string>
+    <string name="background_night">Xanh đêm</string>
+    <string name="background_purple">Tím</string>
     <string name="action_clean_pieces">Dọn mảnh rời về khay</string>
     <string name="action_show_image">Hiện ảnh mẫu</string>
     <string name="action_hide_image">Tắt ảnh mẫu</string>
