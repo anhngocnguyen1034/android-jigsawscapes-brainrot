@@ -19,14 +19,11 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleCategory
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleImage
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnGradients
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import com.nnastudio.jigsawpuzzlebrainrot.utils.assetUri
 
 /** The anh trong danh sach. Anh load bang Coil tu assets (khong co CDN/backend). */
@@ -94,19 +91,3 @@ private val previewPuzzle = PuzzleImage(
     category = PuzzleCategory.BRAINROT,
     assetPath = "puzzles/tralalero.webp"
 )
-
-@Preview(name = "Light")
-@Composable
-private fun PuzzleCardLightPreview() {
-    AnhnnTheme(themeMode = ThemeMode.LIGHT) {
-        PuzzleCard(puzzle = previewPuzzle, onClick = {}, bestTimeLabel = "01:24")
-    }
-}
-
-@Preview(name = "Dark")
-@Composable
-private fun PuzzleCardDarkPreview() {
-    AnhnnTheme(themeMode = ThemeMode.DARK) {
-        PuzzleCard(puzzle = previewPuzzle, onClick = {}, bestTimeLabel = "01:24")
-    }
-}

@@ -10,7 +10,6 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.game.GameScreen
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.home.HomeScreen
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.settings.SettingsScreen
 
-/** Id gia cho van choi bang anh nguoi dung tu chon (khong nam trong catalog). */
 const val DEVICE_IMAGE_PUZZLE_ID = "device_image"
 
 @Composable

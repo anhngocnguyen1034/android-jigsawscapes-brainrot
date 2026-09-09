@@ -186,36 +186,6 @@ data class PuzzlePlayState(
     }
 
     /**
-     * Cho nguoi choi chon manh trong khay thay vi keo: tim cho trong tren ban co de manh
-     * moi khong de len cac manh dang roi.
-     */
-    fun freeBoardSpot(pieceId: Int): PieceOffset {
-        val spanX = (1f - 1f / puzzle.difficulty.cols).coerceAtLeast(0f)
-        val spanY = (1f - 1f / puzzle.difficulty.rows).coerceAtLeast(0f)
-        val occupied = placements.values
-            .filter { !it.isInTray && it.pieceId != pieceId }
-            .map { it.position }
-        if (occupied.isEmpty()) return PieceOffset(spanX / 2, spanY / 2)
-
-        var best = PieceOffset(spanX / 2, spanY / 2)
-        var bestDistance = -1f
-        for (row in 0 until SPOT_STEPS) {
-            for (col in 0 until SPOT_STEPS) {
-                val candidate = PieceOffset(
-                    x = spanX * col / (SPOT_STEPS - 1),
-                    y = spanY * row / (SPOT_STEPS - 1)
-                )
-                val distance = occupied.minOf { hypot(it.x - candidate.x, it.y - candidate.y) }
-                if (distance > bestDistance) {
-                    bestDistance = distance
-                    best = candidate
-                }
-            }
-        }
-        return best
-    }
-
-    /**
      * Cac o con thieu, quet tu tren xuong duoi va tu trai sang phai. Goi y dien vao dung
      * thu tu nay nen nguoi choi luon thay buc anh hien dan tu goc tren-trai.
      */
@@ -510,6 +480,5 @@ data class PuzzlePlayState(
         private const val ALIGNED_EPSILON = 1e-4f
 
         /** So diem thu tren moi chieu khi tim cho trong cho manh chon tu khay. */
-        private const val SPOT_STEPS = 5
     }
 }

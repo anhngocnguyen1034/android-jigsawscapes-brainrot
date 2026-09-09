@@ -4,16 +4,27 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,10 +39,14 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
@@ -39,6 +54,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.zIndex
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -54,10 +70,12 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawPieceVie
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTrayView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TAB_RATIO
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.trayBoardSizePx
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameUiState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameViewModel
 import com.nnastudio.jigsawpuzzlebrainrot.utils.formatAsClock
 import com.nnastudio.jigsawpuzzlebrainrot.utils.toImageBitmap
+import kotlin.math.roundToInt
 
 @Composable
 fun GameScreen(
@@ -72,7 +90,6 @@ fun GameScreen(
         onPieceDragEnd = viewModel::onPieceDragEnd,
         onPieceDragSnap = viewModel::onPieceSnappedWhileDragging,
         onPieceReturnedToTray = viewModel::onPieceReturnedToTray,
-        onTrayPieceSelected = viewModel::onTrayPieceSelected,
         onTrayPieceMoved = viewModel::onTrayPieceMoved,
         onTrayPieceDropped = viewModel::onTrayPieceDropped,
         onPlayAreaMeasured = viewModel::onPlayAreaMeasured,
@@ -93,7 +110,6 @@ private fun GameContent(
     onPieceDragEnd: (Int, Float, Float) -> Unit,
     onPieceDragSnap: (Int, Float, Float) -> Unit,
     onPieceReturnedToTray: (pieceId: Int, index: Int) -> Unit,
-    onTrayPieceSelected: (Int) -> Unit,
     onTrayPieceMoved: (pieceId: Int, index: Int) -> Unit,
     onTrayPieceDropped: (Int, PieceOffset) -> Unit,
     onPlayAreaMeasured: (PieceBounds) -> Unit,
@@ -106,95 +122,175 @@ private fun GameContent(
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Column(
-        modifier = modifier
-            .fillMaxSize()
-            .padding(horizontal = 12.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+    var showPeek by remember { mutableStateOf(false) }
+    val image = remember(uiState.artwork) { uiState.artwork?.toImageBitmap() }
+
+    Box(modifier = modifier.fillMaxSize()) {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 12.dp)
         ) {
-            TextButton(onClick = onBack) {
-                Icon(painter = painterResource(R.drawable.ic_back), contentDescription = null)
-            }
-            TextButton(onClick = onCleanRequested, enabled = uiState.canClean) {
-                Icon(
-                    painter = painterResource(R.drawable.ic_clean),
-                    contentDescription = stringResource(R.string.action_clean_pieces)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Button(onClick = onBack) {
+                    Icon(painter = painterResource(R.drawable.ic_back), contentDescription = null)
+                }
+                Button(onClick = onCleanRequested, enabled = uiState.canClean) {
+                    Icon(
+                        painter = painterResource(R.drawable.ic_clean),
+                        contentDescription = stringResource(R.string.action_clean_pieces)
+                    )
+                }
+                Text(
+                    text = uiState.elapsedSeconds.formatAsClock(),
+                    style = MaterialTheme.typography.titleLarge
                 )
+                Row {
+                    TextButton(onClick = onHintRequested, enabled = uiState.canUseHint) {
+                        Text(text = stringResource(R.string.action_hint, uiState.hintsLeft))
+                    }
+                }
+                Button(onClick = { showPeek = !showPeek }) {
+                    Icon(
+                        painter = painterResource(
+                            if (showPeek) R.drawable.ic_eye_slash else R.drawable.ic_eye
+                        ),
+                        contentDescription = stringResource(
+                            if (showPeek) R.string.action_hide_image else R.string.action_show_image
+                        )
+                    )
+                }
             }
-            Text(
-                text = uiState.elapsedSeconds.formatAsClock(),
-                style = MaterialTheme.typography.titleLarge
-            )
-            Row {
-                TextButton(onClick = onHintRequested, enabled = uiState.canUseHint) {
-                    Text(text = stringResource(R.string.action_hint, uiState.hintsLeft))
+
+            when {
+                uiState.isLoading -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) { CircularProgressIndicator() }
+
+                uiState.errorMessageRes != null -> Box(
+                    modifier = Modifier.fillMaxSize(),
+                    contentAlignment = Alignment.Center
+                ) { Text(text = stringResource(uiState.errorMessageRes)) }
+
+                uiState.playState != null && image != null -> {
+                    Text(
+                        text = if (uiState.isSolved) {
+                            stringResource(R.string.game_solved)
+                        } else {
+                            stringResource(
+                                R.string.game_progress,
+                                uiState.placedCount,
+                                uiState.totalPieces
+                            )
+                        },
+                        style = MaterialTheme.typography.labelSmall,
+                        color = if (uiState.isSolved) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
+                        modifier = Modifier.padding(vertical = 4.dp)
+                    )
+
+                    PlayArea(
+                        playState = uiState.playState,
+                        image = image,
+                        draggingPieceId = uiState.draggingPieceId,
+                        lastMovedPieceId = uiState.lastMovedPieceId,
+                        hintPieceId = uiState.hintPieceId,
+                        onHintPieceLanded = onHintPieceLanded,
+                        cleaningPieceIds = uiState.cleaningPieceIds,
+                        onCleanPieceLanded = onCleanPieceLanded,
+                        onPieceDragStart = onPieceDragStart,
+                        onPieceDragEnd = onPieceDragEnd,
+                        onPieceDragSnap = onPieceDragSnap,
+                        onPieceReturnedToTray = onPieceReturnedToTray,
+                        onTrayPieceMoved = onTrayPieceMoved,
+                        onTrayPieceDropped = onTrayPieceDropped,
+                        onPlayAreaMeasured = onPlayAreaMeasured,
+                        modifier = Modifier.weight(1f)
+                    )
+
+                    AnhnnGradientButton(
+                        text = stringResource(R.string.action_new_game),
+                        onClick = onRestart,
+                        modifier = Modifier
+                            .align(Alignment.CenterHorizontally)
+                            .padding(vertical = 12.dp)
+                    )
                 }
             }
         }
 
-        when {
-            uiState.isLoading -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) { CircularProgressIndicator() }
+        // Anh mau noi tren cung: phai o ngoai Column de keo duoc ra khap man hinh.
+        if (showPeek && image != null) {
+            PeekWindow(image = image, onClose = { showPeek = false })
+        }
+    }
+}
 
-            uiState.errorMessageRes != null -> Box(
-                modifier = Modifier.fillMaxSize(),
-                contentAlignment = Alignment.Center
-            ) { Text(text = stringResource(uiState.errorMessageRes)) }
+/** Canh cua so anh mau: nho de khong che cho ghep, van du to de nhan ra chi tiet. */
+private val PEEK_SIZE = 132.dp
 
-            uiState.playState != null && uiState.artwork != null -> {
-                val image = remember(uiState.artwork) { uiState.artwork.toImageBitmap() }
+/** Goc bo tron va co nut dong cua cua so anh mau. */
+private val PEEK_CORNER = 12.dp
+private val PEEK_CLOSE_SIZE = 28.dp
 
-                Text(
-                    text = if (uiState.isSolved) {
-                        stringResource(R.string.game_solved)
-                    } else {
-                        stringResource(
-                            R.string.game_progress,
-                            uiState.placedCount,
-                            uiState.totalPieces
+@Composable
+private fun PeekWindow(
+    image: ImageBitmap,
+    onClose: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
+        val density = LocalDensity.current
+        val maxX = with(density) { (maxWidth - PEEK_SIZE).toPx() }.coerceAtLeast(0f)
+        val maxY = with(density) { (maxHeight - PEEK_SIZE).toPx() }.coerceAtLeast(0f)
+        var offset by remember(maxX, maxY) { mutableStateOf(Offset(maxX, maxY * 0.12f)) }
+
+        Box(
+            modifier = Modifier
+                .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
+                .size(PEEK_SIZE)
+                .shadow(8.dp, RoundedCornerShape(PEEK_CORNER))
+                .clip(RoundedCornerShape(PEEK_CORNER))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(1.dp, AnhnnTheme.extraColors.border, RoundedCornerShape(PEEK_CORNER))
+                .pointerInput(maxX, maxY) {
+                    detectDragGestures { _, drag ->
+                        offset = Offset(
+                            x = (offset.x + drag.x).coerceIn(0f, maxX),
+                            y = (offset.y + drag.y).coerceIn(0f, maxY)
                         )
-                    },
-                    style = MaterialTheme.typography.labelSmall,
-                    color = if (uiState.isSolved) {
-                        MaterialTheme.colorScheme.primary
-                    } else {
-                        MaterialTheme.colorScheme.onSurface
-                    },
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                PlayArea(
-                    playState = uiState.playState,
-                    image = image,
-                    draggingPieceId = uiState.draggingPieceId,
-                    lastMovedPieceId = uiState.lastMovedPieceId,
-                    hintPieceId = uiState.hintPieceId,
-                    onHintPieceLanded = onHintPieceLanded,
-                    cleaningPieceIds = uiState.cleaningPieceIds,
-                    onCleanPieceLanded = onCleanPieceLanded,
-                    onPieceDragStart = onPieceDragStart,
-                    onPieceDragEnd = onPieceDragEnd,
-                    onPieceDragSnap = onPieceDragSnap,
-                    onPieceReturnedToTray = onPieceReturnedToTray,
-                    onTrayPieceSelected = onTrayPieceSelected,
-                    onTrayPieceMoved = onTrayPieceMoved,
-                    onTrayPieceDropped = onTrayPieceDropped,
-                    onPlayAreaMeasured = onPlayAreaMeasured,
-                    modifier = Modifier.weight(1f)
-                )
-
-                AnhnnGradientButton(
-                    text = stringResource(R.string.action_new_game),
-                    onClick = onRestart,
-                    modifier = Modifier
-                        .align(Alignment.CenterHorizontally)
-                        .padding(vertical = 12.dp)
+                    }
+                }
+        ) {
+            Image(
+                bitmap = image,
+                contentDescription = null,
+                contentScale = ContentScale.FillBounds,
+                modifier = Modifier.fillMaxSize()
+            )
+            IconButton(
+                onClick = onClose,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .padding(2.dp)
+                    .size(PEEK_CLOSE_SIZE)
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.75f),
+                        shape = CircleShape
+                    )
+            ) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_close),
+                    contentDescription = stringResource(R.string.action_close_image),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }
@@ -219,7 +315,6 @@ private fun PlayArea(
     onPieceDragEnd: (Int, Float, Float) -> Unit,
     onPieceDragSnap: (Int, Float, Float) -> Unit,
     onPieceReturnedToTray: (pieceId: Int, index: Int) -> Unit,
-    onTrayPieceSelected: (Int) -> Unit,
     onTrayPieceMoved: (pieceId: Int, index: Int) -> Unit,
     onTrayPieceDropped: (Int, PieceOffset) -> Unit,
     onPlayAreaMeasured: (PieceBounds) -> Unit,
@@ -286,9 +381,6 @@ private fun PlayArea(
                 },
                 modifier = Modifier
                     .weight(1f)
-                    // Manh keo tu ban co chi dich bang graphicsLayer nen no van thuoc lop ban
-                    // co; khay ve sau se de len no. Nang ca lop ban co trong luc keo de manh
-                    // di qua duoc thanh khay. Het keo thi ha xuong, tra cho khay nhan cham.
                     .zIndex(if (draggingPieceId != null) 1f else 0f)
             )
 
@@ -300,7 +392,6 @@ private fun PlayArea(
                 hintPieceId = hintPieceId,
                 listState = trayListState,
                 boardSizePx = boardSizePx,
-                onPieceSelected = onTrayPieceSelected,
                 onDragStart = { pieceId, position ->
                     trayDragPosition.value = position
                     trayDragPieceId = pieceId
@@ -399,9 +490,6 @@ private fun PlayArea(
 
             // Nut don: cac manh roi le cung bay ve cuoi khay, lech nhip nhau cho de nhin.
             cleaningPieceIds.forEachIndexed { index, cleanedId ->
-                // key() phai o ngoai cung moi vong lap: de trong if thi khi manh dau ha canh
-                // (danh sach ngan lai), Compose khong nhan ra cac manh con lai la manh cu nen
-                // dung lai chung tu dau - chung nhay ve ban co roi bay lai mot lan nua.
                 key(cleanedId) {
                     val piece = playState.puzzle.pieces.firstOrNull { it.id == cleanedId }
                     val placement = playState.placements[cleanedId]
