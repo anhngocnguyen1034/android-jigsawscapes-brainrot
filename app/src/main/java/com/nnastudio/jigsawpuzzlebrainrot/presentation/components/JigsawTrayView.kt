@@ -7,12 +7,10 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.drag
-import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -37,11 +35,9 @@ import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
-import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import kotlin.math.roundToInt
@@ -56,11 +52,9 @@ import kotlin.math.roundToInt
  * xuong khay, con cac manh xung quanh truot sang cho moi; nho vay keo ra / them lai khong
  * lam ca danh sach giat mot nhip.
  *
- * Hai cach dua manh vao ban co:
- * - keo manh len (vuot doc) - [onDragStart]/[onDragMove]/[onDragEnd] bao toa do ngon tay
- *   theo goc cua cay layout de man hinh doi sang toa do ban co. Manh chi vao cho khi nguoi
- *   choi nhac tay ([onDragEnd]);
- * - cham vao manh - [onPieceSelected], manh tu tim cho trong tren ban co.
+ * Dua manh vao ban co bang cach keo manh len (vuot doc) - [onDragStart]/[onDragMove]/
+ * [onDragEnd] bao toa do ngon tay theo goc cua cay layout de man hinh doi sang toa do ban
+ * co. Manh chi vao cho khi nguoi choi nhac tay ([onDragEnd]).
  *
  * Vuot ngang khong bi bat lam keo manh de LazyRow con cuon duoc: chi khi vuot doc vuot
  * qua touch slop thi manh moi duoc nhac len.
@@ -73,7 +67,6 @@ fun JigsawTrayView(
     /** Manh dang bay tu khay vao o cua no (goi y): cho cu trong khay de trong. */
     hintPieceId: Int?,
     listState: LazyListState,
-    onPieceSelected: (Int) -> Unit,
     onDragStart: (pieceId: Int, position: Offset) -> Unit,
     onDragMove: (position: Offset) -> Unit,
     onDragEnd: (position: Offset) -> Unit,
@@ -88,7 +81,6 @@ fun JigsawTrayView(
     val slotWidth = trayBoard / cols
     val slotHeight = trayBoard / rows
     val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
-    val label = stringResource(R.string.action_place_piece)
 
     LazyRow(
         modifier = modifier
@@ -105,7 +97,6 @@ fun JigsawTrayView(
     ) {
         items(items = playState.trayPieces, key = { it.id }) { piece ->
             val coordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
-            val interactionSource = remember { MutableInteractionSource() }
             // Manh dang duoc keo / dang bay hien o lop noi ben tren: cho cu trong khay thu
             // dan ve 0 cho cac manh phia sau don vao, tha lai trong khay thi cho no ra.
             val lifted = piece.id == draggedPieceId || piece.id == hintPieceId
@@ -131,11 +122,6 @@ fun JigsawTrayView(
                         fadeOutSpec = null
                     )
                     .onGloballyPositioned { coordinates.value = it }
-                    .clickable(
-                        interactionSource = interactionSource,
-                        indication = null,
-                        onClickLabel = label
-                    ) { onPieceSelected(piece.id) }
                     .pointerInput(piece.id) {
                         awaitEachGesture {
                             val down = awaitFirstDown(requireUnconsumed = false)

@@ -95,18 +95,6 @@ class PuzzlePlayStateTest {
     }
 
     @Test
-    fun `should pick a free board spot for a selected tray piece`() {
-        val state = newTrayState().releaseFromTray(puzzle.pieces.first().id, PieceOffset(0f, 0f))
-        val piece = puzzle.pieces[1]
-
-        val spot = state.freeBoardSpot(piece.id)
-
-        // Cho trong phai nam trong ban co va khong de len manh dang o goc tren-trai.
-        assertEquals(spot, PieceBounds.forBoard(puzzle.difficulty).clamp(spot))
-        assertTrue(spot.x > 0f || spot.y > 0f)
-    }
-
-    @Test
     fun `should let a loose piece move outside the board frame`() {
         // Man hinh rong hon ban co: manh roi duoc ra ca hai ben ngoai khung.
         val bounds = PieceBounds(minX = -0.2f, minY = -0.1f, maxX = 1.2f, maxY = 1.1f)

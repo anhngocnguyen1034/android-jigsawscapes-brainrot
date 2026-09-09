@@ -201,12 +201,6 @@ class GameViewModel @Inject constructor(
         _uiState.update { it.copy(playState = moved) }
     }
 
-    /** Chon mot manh trong khay: manh tu tim cho trong tren ban co. */
-    fun onTrayPieceSelected(pieceId: Int) {
-        val playState = _uiState.value.playState ?: return
-        releaseFromTray(pieceId, playState.freeBoardSpot(pieceId))
-    }
-
     private fun releaseFromTray(pieceId: Int, position: PieceOffset) {
         val released = _uiState.value.playState?.releaseFromTray(pieceId, position) ?: return
         _uiState.update {

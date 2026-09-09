@@ -14,8 +14,10 @@
     <string name="action_hint">Gợi ý (%1$d)</string>
     <string name="action_pick_image">Ảnh của bạn</string>
     <string name="game_solved">Hoàn thành!</string>
-    <string name="action_place_piece">Đưa mảnh vào bảng</string>
     <string name="action_clean_pieces">Dọn mảnh rời về khay</string>
+    <string name="action_show_image">Hiện ảnh mẫu</string>
+    <string name="action_hide_image">Tắt ảnh mẫu</string>
+    <string name="action_close_image">Đóng ảnh mẫu</string>
 
     <!-- Settings -->
     <string name="settings_title">Cài đặt</string>
