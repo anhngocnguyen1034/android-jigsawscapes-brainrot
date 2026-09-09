@@ -8,6 +8,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
@@ -123,6 +124,8 @@ private fun GameContent(
     modifier: Modifier = Modifier
 ) {
     var showPeek by remember { mutableStateOf(false) }
+    // Canh khung ghep, do trong PlayArea: anh mau zoom to nhat bang dung khung nay.
+    var boardSizePx by remember { mutableFloatStateOf(0f) }
     val image = remember(uiState.artwork) { uiState.artwork?.toImageBitmap() }
 
     Box(modifier = modifier.fillMaxSize()) {
@@ -213,6 +216,7 @@ private fun GameContent(
                         onTrayPieceMoved = onTrayPieceMoved,
                         onTrayPieceDropped = onTrayPieceDropped,
                         onPlayAreaMeasured = onPlayAreaMeasured,
+                        onBoardSizeMeasured = { boardSizePx = it },
                         modifier = Modifier.weight(1f)
                     )
 
@@ -229,43 +233,70 @@ private fun GameContent(
 
         // Anh mau noi tren cung: phai o ngoai Column de keo duoc ra khap man hinh.
         if (showPeek && image != null) {
-            PeekWindow(image = image, onClose = { showPeek = false })
+            PeekWindow(
+                image = image,
+                maxSize = with(LocalDensity.current) { boardSizePx.toDp() },
+                onClose = { showPeek = false }
+            )
         }
     }
 }
 
-/** Canh cua so anh mau: nho de khong che cho ghep, van du to de nhan ra chi tiet. */
+/** Canh cua so anh mau luc moi mo: nho de khong che cho ghep, van du to de nhan ra chi tiet. */
 private val PEEK_SIZE = 132.dp
 
 /** Goc bo tron va co nut dong cua cua so anh mau. */
 private val PEEK_CORNER = 12.dp
 private val PEEK_CLOSE_SIZE = 28.dp
 
+/**
+ * Cua so anh mau: keo di duoc va chum hai ngon tay de zoom. To nhat bang [maxSize] (canh
+ * khung ghep) de nguoi choi so anh mau voi ban co o cung mot co.
+ */
 @Composable
 private fun PeekWindow(
     image: ImageBitmap,
+    maxSize: Dp,
     onClose: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     BoxWithConstraints(modifier = modifier.fillMaxSize()) {
         val density = LocalDensity.current
-        val maxX = with(density) { (maxWidth - PEEK_SIZE).toPx() }.coerceAtLeast(0f)
-        val maxY = with(density) { (maxHeight - PEEK_SIZE).toPx() }.coerceAtLeast(0f)
-        var offset by remember(maxX, maxY) { mutableStateOf(Offset(maxX, maxY * 0.12f)) }
+        // Chua do xong ban co (maxSize = 0) thi chi cho zoom trong pham vi man hinh.
+        val largest = maxSize.coerceIn(PEEK_SIZE, minOf(maxWidth, maxHeight))
+        var size by remember(largest) { mutableStateOf(PEEK_SIZE.coerceAtMost(largest)) }
+
+        /** Goc tren-trai xa nhat de cua so canh [side] con nam trong man hinh. */
+        fun limitOf(side: Dp) = with(density) {
+            Offset(
+                x = (maxWidth - side).toPx().coerceAtLeast(0f),
+                y = (maxHeight - side).toPx().coerceAtLeast(0f)
+            )
+        }
+
+        var offset by remember(maxWidth, maxHeight) {
+            val limit = limitOf(PEEK_SIZE)
+            mutableStateOf(Offset(limit.x, limit.y * 0.12f))
+        }
 
         Box(
             modifier = Modifier
                 .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
-                .size(PEEK_SIZE)
+                .size(size)
                 .shadow(8.dp, RoundedCornerShape(PEEK_CORNER))
                 .clip(RoundedCornerShape(PEEK_CORNER))
                 .background(MaterialTheme.colorScheme.surface)
                 .border(1.dp, AnhnnTheme.extraColors.border, RoundedCornerShape(PEEK_CORNER))
-                .pointerInput(maxX, maxY) {
-                    detectDragGestures { _, drag ->
+                .pointerInput(largest, maxWidth, maxHeight) {
+                    detectTransformGestures { _, pan, zoom, _ ->
+                        val next = (size * zoom).coerceIn(PEEK_SIZE, largest)
+                        // Zoom quanh tam cua so: goc tren-trai lui ra nua phan vua no them.
+                        val grown = (next - size).toPx() / 2f
+                        size = next
+                        val limit = limitOf(next)
                         offset = Offset(
-                            x = (offset.x + drag.x).coerceIn(0f, maxX),
-                            y = (offset.y + drag.y).coerceIn(0f, maxY)
+                            x = (offset.x + pan.x - grown).coerceIn(0f, limit.x),
+                            y = (offset.y + pan.y - grown).coerceIn(0f, limit.y)
                         )
                     }
                 }
@@ -318,6 +349,7 @@ private fun PlayArea(
     onTrayPieceMoved: (pieceId: Int, index: Int) -> Unit,
     onTrayPieceDropped: (Int, PieceOffset) -> Unit,
     onPlayAreaMeasured: (PieceBounds) -> Unit,
+    onBoardSizeMeasured: (Float) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -326,6 +358,9 @@ private fun PlayArea(
     var areaOrigin by remember { mutableStateOf(Offset.Zero) }
     var boardOrigin by remember { mutableStateOf(Offset.Zero) }
     var boardSizePx by remember { mutableFloatStateOf(0f) }
+    // Canh ban co luc chua zoom: co manh trong khay do theo day nen zoom ban co khong lam
+    // khay phong to theo.
+    var baseBoardSizePx by remember { mutableFloatStateOf(0f) }
     // null = chua do xong khay, chua biet dau la ranh gioi khay.
     var trayOrigin by remember { mutableStateOf<Offset?>(null) }
     var traySize by remember { mutableStateOf(IntSize.Zero) }
@@ -363,9 +398,11 @@ private fun PlayArea(
                 draggingPieceId = draggingPieceId,
                 lastMovedPieceId = lastMovedPieceId,
                 flyingPieceIds = flyingPieceIds,
-                onBoardMeasured = { origin, sizePx, bounds ->
+                onBoardMeasured = { origin, sizePx, baseSizePx, bounds ->
                     boardOrigin = origin
                     boardSizePx = sizePx
+                    baseBoardSizePx = baseSizePx
+                    onBoardSizeMeasured(sizePx)
                     onPlayAreaMeasured(bounds)
                 },
                 onPieceDragStart = onPieceDragStart,
@@ -391,7 +428,7 @@ private fun PlayArea(
                 draggedPieceId = trayDragPieceId,
                 hintPieceId = hintPieceId,
                 listState = trayListState,
-                boardSizePx = boardSizePx,
+                boardSizePx = baseBoardSizePx,
                 onDragStart = { pieceId, position ->
                     trayDragPosition.value = position
                     trayDragPieceId = pieceId
@@ -429,7 +466,9 @@ private fun PlayArea(
             val frameHeight = with(density) { (slotHeight + margin * 2).toPx() }
             // Manh trong khay ve nho hon manh tren ban co, nen manh bay giua hai noi vua bay
             // vua doi kich thuoc.
-            val trayScale = trayBoardSizePx(boardSizePx, rows, cols) / boardSizePx
+            // Manh trong khay do theo canh ban co chua zoom, con manh bay do theo canh dang
+            // hien thi, nen ti le nay phai lay ca hai.
+            val trayScale = trayBoardSizePx(baseBoardSizePx, rows, cols) / boardSizePx
 
             /** Goc tren-trai cua khung manh khi manh nam o [position] tren ban co. */
             fun boardFrameOf(position: PieceOffset) = Offset(

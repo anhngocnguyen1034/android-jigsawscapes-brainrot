@@ -1,7 +1,7 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.components
 
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
@@ -84,7 +84,11 @@ fun JigsawPieceView(
         )
     }
 
-    Canvas(modifier = modifier.size(slotWidth + margin * 2, slotHeight + margin * 2)) {
+    // requiredSize chu khong phai size: ban co zoom to hon vung choi thi rang buoc tu cha
+    // se cat bot khung manh, manh se bi bop lai thay vi to len.
+    Canvas(
+        modifier = modifier.requiredSize(slotWidth + margin * 2, slotHeight + margin * 2)
+    ) {
         // Manh chua vao o van con nam tren ban co nen do bong xuong duoi-phai cho no noi
         // len. Bong la vai ban sao cua chinh duong bao lech dan roi to nhat: canvas tang
         // toc GPU khong ve duoc bong nhoe san cho duong bao lom nhu manh ghep.
