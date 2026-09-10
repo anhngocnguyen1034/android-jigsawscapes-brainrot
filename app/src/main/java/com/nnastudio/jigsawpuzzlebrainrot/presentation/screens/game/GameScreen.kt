@@ -1,6 +1,7 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.game
 
 import androidx.compose.foundation.layout.Arrangement
+import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -14,6 +15,10 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.offset
@@ -23,15 +28,15 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
@@ -53,6 +58,7 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
@@ -60,6 +66,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.zIndex
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nnastudio.jigsawpuzzlebrainrot.R
@@ -89,6 +98,8 @@ fun GameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    HideStatusBar()
+
     GameContent(
         uiState = uiState,
         onPieceDragStart = viewModel::onPieceDragStart,
@@ -110,6 +121,27 @@ fun GameScreen(
     )
 }
 
+/**
+ * An status bar trong luc man hinh choi con hien: van choi lay het chieu cao man hinh, con
+ * dong ho / pin cua may thi khong lien quan den viec ghep. Vuot tu tren xuong van goi status
+ * bar ra tam thoi, va ra khoi man hinh choi la no hien lai.
+ */
+@Composable
+private fun HideStatusBar() {
+    val view = LocalView.current
+    DisposableEffect(view) {
+        val window = (view.context as? Activity)?.window
+        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
+        controller?.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+        controller?.hide(WindowInsetsCompat.Type.statusBars())
+        onDispose { controller?.show(WindowInsetsCompat.Type.statusBars()) }
+    }
+}
+
+// statusBarsIgnoringVisibility: chua on dinh nhung la cach duy nhat biet status bar cao bao
+// nhieu trong luc no dang bi an.
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GameContent(
     uiState: GameUiState,
@@ -137,21 +169,35 @@ private fun GameContent(
     var boardSizePx by remember { mutableFloatStateOf(0f) }
     val image = remember(uiState.artwork) { uiState.artwork?.toImageBitmap() }
 
-    Box(modifier = modifier.fillMaxSize()) {
+    Box(
+        modifier = modifier
+            .fillMaxSize()
+            // Status bar dang bi an nhung khong cho noi dung tran len cho cua no: dai do hay
+            // co camera / notch. IgnoringVisibility = van chua cho du thanh do dang an.
+            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
+    ) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(horizontal = 12.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    // Thanh cong cu chi con icon tran, nen can mot lop nen mo de icon khong
+                    // lan vao manh ghep phia sau.
+                    .background(
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_ALPHA),
+                        shape = RoundedCornerShape(16.dp)
+                    )
+                    .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Button(onClick = onBack) {
+                IconButton(onClick = onBack) {
                     Icon(painter = painterResource(R.drawable.ic_back), contentDescription = null)
                 }
-                Button(onClick = onCleanRequested, enabled = uiState.canClean) {
+                IconButton(onClick = onCleanRequested, enabled = uiState.canClean) {
                     Icon(
                         painter = painterResource(R.drawable.ic_clean),
                         contentDescription = stringResource(R.string.action_clean_pieces)
@@ -166,14 +212,7 @@ private fun GameContent(
                         Text(text = stringResource(R.string.action_hint, uiState.hintsLeft))
                     }
                 }
-                Button(
-                    onClick = onToggleEdgePiecesOnly,
-                    colors = if (uiState.edgePiecesOnly) {
-                        ButtonDefaults.buttonColors()
-                    } else {
-                        ButtonDefaults.filledTonalButtonColors()
-                    }
-                ) {
+                IconButton(onClick = onToggleEdgePiecesOnly) {
                     Icon(
                         painter = painterResource(R.drawable.ic_edge_pieces),
                         contentDescription = stringResource(
@@ -182,23 +221,39 @@ private fun GameContent(
                             } else {
                                 R.string.action_show_edge_pieces
                             }
-                        )
+                        ),
+                        // Khong con nen nut de bao trang thai bat/tat: doi mau icon.
+                        tint = if (uiState.edgePiecesOnly) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            LocalContentColor.current
+                        }
                     )
                 }
-                Button(onClick = { showBackgrounds = !showBackgrounds }) {
+                IconButton(onClick = { showBackgrounds = !showBackgrounds }) {
                     Icon(
                         painter = painterResource(R.drawable.ic_background),
-                        contentDescription = stringResource(R.string.action_change_background)
+                        contentDescription = stringResource(R.string.action_change_background),
+                        tint = if (showBackgrounds) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            LocalContentColor.current
+                        }
                     )
                 }
-                Button(onClick = { showPeek = !showPeek }) {
+                IconButton(onClick = { showPeek = !showPeek }) {
                     Icon(
                         painter = painterResource(
                             if (showPeek) R.drawable.ic_eye_slash else R.drawable.ic_eye
                         ),
                         contentDescription = stringResource(
                             if (showPeek) R.string.action_hide_image else R.string.action_show_image
-                        )
+                        ),
+                        tint = if (showPeek) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            LocalContentColor.current
+                        }
                     )
                 }
             }
@@ -289,6 +344,9 @@ private fun GameContent(
         }
     }
 }
+
+/** Do duc cua lop nen thanh cong cu: du de doc icon, van thay mo mo manh ghep phia sau. */
+private const val TOP_BAR_ALPHA = 0.7f
 
 /** Canh mot o mau trong bang chon nen. */
 private val SWATCH_SIZE = 36.dp
