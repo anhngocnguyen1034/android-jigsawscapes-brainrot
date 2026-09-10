@@ -8,6 +8,7 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.GenerateJigsawPuzzleUs
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.PrepareTrayUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.fake.FakePuzzleRepository
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import kotlin.random.Random
 
@@ -20,9 +21,26 @@ class ScoreRulesTest {
     private fun newTrayState(): PuzzlePlayState = prepareTray(puzzle, Random(5))
 
     @Test
+    fun `should pay a bigger bonus for pictures with more pieces`() {
+        val small = ScoreRules.solvedBonus(Difficulty.MASTER)
+        val big = ScoreRules.solvedBonus(Difficulty.LEGEND)
+
+        assertEquals(
+            ScoreRules.POINTS_SOLVED + ScoreRules.POINTS_PER_PIECE_SOLVED * 64,
+            small
+        )
+        assertEquals(
+            ScoreRules.POINTS_SOLVED + ScoreRules.POINTS_PER_PIECE_SOLVED * 400,
+            big
+        )
+        assertTrue(big > small)
+    }
+
+    @Test
     fun `should give no points for moving a piece without fitting it`() {
         val state = newTrayState()
-        val piece = puzzle.pieces.first()
+        // Manh giua canh: manh goc thi cho nay con nam trong vung hut rong cua goc khung.
+        val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
 
         // Cho nay cach xa o dung cua manh va xa moi manh ke ben: chua ghep vao dau.
         val released = state.releaseFromTray(piece.id, PieceOffset(0.15f, 0.15f))

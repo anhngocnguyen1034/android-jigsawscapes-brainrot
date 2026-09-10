@@ -24,6 +24,17 @@ data class SavedGame(
 ) {
 
     /**
+     * Tien do cua van, tinh theo % so manh da vao dung o. Man hinh chinh hien so nay tren
+     * the anh de nguoi choi biet buc nao dang do dang.
+     */
+    val progressPercent: Int
+        get() = if (placements.isEmpty()) {
+            0
+        } else {
+            placements.count { it.isPlaced } * 100 / placements.size
+        }
+
+    /**
      * Dung lai trang thai van tren [puzzle] vua cat lai tu [seed]. Tra ve null khi ban luu
      * khong con khop voi bo manh (doi do kho, doi so manh...) - luc do phai choi van moi.
      *

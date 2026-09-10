@@ -9,14 +9,21 @@ package com.nnastudio.jigsawpuzzlebrainrot.domain.models
  *   di chinh cua van: manh khop voi manh ke ben, khong can dat dung o tren ban co;
  * - mot manh vao dung o cua no tren ban co va bi khoa lai - [POINTS_PER_PLACED].
  *
- * Goi y khong duoc cong diem: may lam thay nguoi choi. Con [POINTS_SOLVED] la thuong khi
- * xong ca buc anh, cong mot lan du xong bang cach nao.
+ * Goi y khong duoc cong diem: may lam thay nguoi choi. Con [solvedBonus] la thuong khi xong
+ * ca buc anh, cong mot lan du xong bang cach nao - buc cang nhieu manh thuong cang lon.
  */
 object ScoreRules {
 
     const val POINTS_PER_JOIN = 10
     const val POINTS_PER_PLACED = 20
     const val POINTS_SOLVED = 100
+
+    /** Phan thuong cong them cho moi manh cua buc anh khi xong - xem [solvedBonus]. */
+    const val POINTS_PER_PIECE_SOLVED = 5
+
+    /** Thuong khi ghep xong ca buc: cang nhieu manh cang duoc nhieu diem. */
+    fun solvedBonus(difficulty: Difficulty): Int =
+        POINTS_SOLVED + POINTS_PER_PIECE_SOLVED * difficulty.pieceCount
 
     /**
      * Diem an duoc khi van di tu [before] sang [after]. Chi cong chu khong tru: keo manh ra

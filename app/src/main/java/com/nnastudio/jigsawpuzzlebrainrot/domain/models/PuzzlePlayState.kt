@@ -247,12 +247,28 @@ data class PuzzlePlayState(
     }
 
     /**
+     * Manh o mot trong 4 goc khung. Goc la diem tua de dung khung nen no duoc hut tu xa hon
+     * han cac manh khac ([CORNER_SNAP_RATIO]): keo den gan goc la manh tu nhay vao dung cho,
+     * ca trong luc di chuyen lan khi tha tay.
+     */
+    fun isCornerPiece(pieceId: Int): Boolean {
+        val piece = puzzle.pieces.firstOrNull { it.id == pieceId } ?: return false
+        val lastRow = puzzle.difficulty.rows - 1
+        val lastCol = puzzle.difficulty.cols - 1
+        return (piece.row == 0 || piece.row == lastRow) && (piece.col == 0 || piece.col == lastCol)
+    }
+
+    /** Nguong hut vao dung o cua rieng mot manh: manh goc duoc hut tu xa hon. */
+    private fun boardSnapThresholdOf(pieceId: Int, threshold: Float): Float =
+        if (isCornerPiece(pieceId)) threshold * CORNER_SNAP_RATIO / SNAP_RATIO else threshold
+
+    /**
      * Doan hut them can cong vao doan dang keo ([dx], [dy] theo toa do ban co) de manh vao
      * dung o cua no ngay giua luc keo; null neu khong hut.
      *
      * Chi cac manh vien duoc hut som nhu vay, cac manh ben trong chi nhay vao cho khi tha
      * ([dropPiece]) - manh trong long buc anh khong co moc nao de doi chieu nen hut som chi
-     * lam manh giat khoi ngon tay.
+     * lam manh giat khoi ngon tay. Rieng 4 manh goc duoc hut tu xa hon ([isCornerPiece]).
      */
     fun dragSnapOffset(
         pieceId: Int,
@@ -321,6 +337,10 @@ data class PuzzlePlayState(
     /**
      * Tha manh. Uu tien hut vao manh ke ben (chi can dat gan dung tuong quan, khong can
      * dung o tren ban co); neu khong co manh nao ke ben thi thu hut vao dung o cua minh.
+     *
+     * Rieng manh goc thi o tren ban co duoc uu tien truoc: goc khung la moc ro rang nhat,
+     * dat vao goc la nguoi choi muon no vao khung chu khong phai dinh vao mot manh roi
+     * ngau nhien nam ke ben.
      */
     fun dropPiece(pieceId: Int, snapThreshold: Float = this.snapThreshold): PuzzlePlayState {
         val placement = placements[pieceId] ?: return this
@@ -329,6 +349,15 @@ data class PuzzlePlayState(
         val groupId = groupOf(pieceId)
         val members = groupMembers(groupId)
         val dropped = copy(moves = moves + 1)
+
+        val cornerFit = dropped.findBoardFit(members, snapThreshold)?.takeIf { it.isCorner }
+        if (cornerFit != null) {
+            return dropped
+                .translate(members, cornerFit.dx, cornerFit.dy)
+                .lock(members)
+                .mergeAlignedNeighbours(groupId)
+                .settle(groupId)
+        }
 
         val neighbourFit = dropped.findNeighbourFit(members, snapThreshold)
         if (neighbourFit != null) {
@@ -467,20 +496,40 @@ data class PuzzlePlayState(
             val dx = target.x - position.x
             val dy = target.y - position.y
             val error = hypot(dx, dy)
-            if (error > threshold) continue
+            if (error > boardSnapThresholdOf(id, threshold)) continue
             if (error < bestError) {
                 bestError = error
-                best = Fit(dx = dx, dy = dy, groupId = groupOf(id))
+                best = Fit(
+                    dx = dx,
+                    dy = dy,
+                    groupId = groupOf(id),
+                    isCorner = isCornerPiece(id)
+                )
             }
         }
         return best
     }
 
-    private data class Fit(val dx: Float, val dy: Float, val groupId: Int)
+    /** [isCorner] = cho hut la o cua mot manh goc tren ban co. */
+    private data class Fit(
+        val dx: Float,
+        val dy: Float,
+        val groupId: Int,
+        val isCorner: Boolean = false
+    )
 
     companion object {
         /** Nguong hut manh: manh phai dat lech duoi 18% be rong mot manh. Xem [snapThreshold]. */
         private const val SNAP_RATIO = 0.18f
+
+        /**
+         * Nguong hut rieng cho 4 manh goc: gan bang ca mot manh, rong hon han [SNAP_RATIO].
+         * O tren ban co la o trong, khong co manh nao ben canh de nguoi choi ngam cho dung -
+         * nguong chat nhu manh thuong thi keo manh goc vao dung goc khung ma van khong vao
+         * cho. Goc khung chi co mot cho duy nhat nen hut tu xa cung khong so vao sai o.
+         * Xem [isCornerPiece].
+         */
+        private const val CORNER_SNAP_RATIO = 0.9f
 
         /** Sai so coi nhu da nam dung tuong quan (dung khi gop them khoi ke ben). */
         private const val ALIGNED_EPSILON = 1e-4f

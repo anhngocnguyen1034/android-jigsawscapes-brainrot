@@ -96,7 +96,8 @@ fun JigsawTrayView(
             // neu cao khay chay theo ban co thi hai ben do lan nhau.
             .height(maxPieceSize * (1f + TAB_RATIO * 2) + TRAY_PADDING * 2)
             .clip(RoundedCornerShape(16.dp))
-            .background(AnhnnTheme.extraColors.boardSlot),
+            // Nen khay trong mot phan de mau nen ban choi nhin xuyen qua duoc.
+            .background(AnhnnTheme.extraColors.boardSlot.copy(alpha = TRAY_ALPHA)),
         state = listState,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = TRAY_PADDING),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -205,6 +206,9 @@ fun trayBoardSizePx(
 val TRAY_PIECE_SIZE = 64.dp
 
 private val TRAY_PADDING = 8.dp
+
+/** Do duc cua nen khay: du de tach khay khoi ban co, van thay mau nen phia sau. */
+private const val TRAY_ALPHA = 0.32f
 
 /** Thoi gian cho trong khay thu lai / no ra khi manh roi khoi khay hay tra ve khay (ms). */
 private const val TRAY_SLOT_DURATION = 220

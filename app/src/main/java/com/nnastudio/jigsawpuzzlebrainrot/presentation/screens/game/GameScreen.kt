@@ -1,7 +1,6 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.game
 
 import androidx.compose.foundation.layout.Arrangement
-import android.app.Activity
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
@@ -36,7 +35,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
@@ -47,6 +45,7 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
@@ -58,7 +57,6 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
-import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.res.stringResource
@@ -66,9 +64,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.zIndex
-import androidx.core.view.WindowCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.WindowInsetsControllerCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.nnastudio.jigsawpuzzlebrainrot.R
@@ -77,7 +72,6 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceOffset
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.AnhnnGradientButton
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawBoardView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawPieceView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTrayView
@@ -98,8 +92,6 @@ fun GameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
-    HideStatusBar()
-
     GameContent(
         uiState = uiState,
         onPieceDragStart = viewModel::onPieceDragStart,
@@ -116,31 +108,12 @@ fun GameScreen(
         onTogglePause = viewModel::onTogglePause,
         onBackgroundSelected = viewModel::onBoardBackgroundSelected,
         onToggleEdgePiecesOnly = viewModel::onToggleEdgePiecesOnly,
-        onRestart = viewModel::startNewGame,
         onBack = onBack
     )
 }
 
-/**
- * An status bar trong luc man hinh choi con hien: van choi lay het chieu cao man hinh, con
- * dong ho / pin cua may thi khong lien quan den viec ghep. Vuot tu tren xuong van goi status
- * bar ra tam thoi, va ra khoi man hinh choi la no hien lai.
- */
-@Composable
-private fun HideStatusBar() {
-    val view = LocalView.current
-    DisposableEffect(view) {
-        val window = (view.context as? Activity)?.window
-        val controller = window?.let { WindowCompat.getInsetsController(it, view) }
-        controller?.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-        controller?.hide(WindowInsetsCompat.Type.statusBars())
-        onDispose { controller?.show(WindowInsetsCompat.Type.statusBars()) }
-    }
-}
-
 // statusBarsIgnoringVisibility: chua on dinh nhung la cach duy nhat biet status bar cao bao
-// nhieu trong luc no dang bi an.
+// nhieu trong luc no dang bi an (MainActivity an het thanh he thong).
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun GameContent(
@@ -159,7 +132,6 @@ private fun GameContent(
     onTogglePause: () -> Unit,
     onBackgroundSelected: (BoardBackground) -> Unit,
     onToggleEdgePiecesOnly: () -> Unit,
-    onRestart: () -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -172,8 +144,12 @@ private fun GameContent(
     Box(
         modifier = modifier
             .fillMaxSize()
+            // Mau nen phu ca man hinh (ke ca cho status bar): thanh cong cu, khung ban co va
+            // khay deu trong suot mot phan nen doi nen la ca man hinh doi theo.
+            .background(uiState.boardBackground.color())
             // Status bar dang bi an nhung khong cho noi dung tran len cho cua no: dai do hay
-            // co camera / notch. IgnoringVisibility = van chua cho du thanh do dang an.
+            // co camera / notch. IgnoringVisibility = van chua cho du thanh do dang an. Con
+            // cho nav bar thi khay dung luon: nav cung dang an.
             .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
     ) {
         Column(
@@ -184,8 +160,8 @@ private fun GameContent(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    // Thanh cong cu chi con icon tran, nen can mot lop nen mo de icon khong
-                    // lan vao manh ghep phia sau.
+                    // Thanh cong cu chi con icon tran: mot lop nen mo de icon khong lan vao
+                    // manh ghep phia sau, van du trong de thay mau nen ban choi.
                     .background(
                         color = MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_ALPHA),
                         shape = RoundedCornerShape(16.dp)
@@ -315,20 +291,7 @@ private fun GameContent(
                         onPlayAreaMeasured = onPlayAreaMeasured,
                         onBoardSizeMeasured = { boardSizePx = it },
                         edgePiecesOnly = uiState.edgePiecesOnly,
-                        modifier = Modifier
-                            .weight(1f)
-                            .background(
-                                color = uiState.boardBackground.color(),
-                                shape = RoundedCornerShape(16.dp)
-                            )
-                    )
-
-                    AnhnnGradientButton(
-                        text = stringResource(R.string.action_new_game),
-                        onClick = onRestart,
-                        modifier = Modifier
-                            .align(Alignment.CenterHorizontally)
-                            .padding(vertical = 12.dp)
+                        modifier = Modifier.weight(1f)
                     )
                 }
             }
@@ -345,8 +308,8 @@ private fun GameContent(
     }
 }
 
-/** Do duc cua lop nen thanh cong cu: du de doc icon, van thay mo mo manh ghep phia sau. */
-private const val TOP_BAR_ALPHA = 0.7f
+/** Do duc cua lop nen thanh cong cu: du de doc icon, van nhin xuyen thay mau nen ban choi. */
+private const val TOP_BAR_ALPHA = 0.32f
 
 /** Canh mot o mau trong bang chon nen. */
 private val SWATCH_SIZE = 36.dp
@@ -397,6 +360,9 @@ private val PEEK_SIZE = 132.dp
 private val PEEK_CORNER = 12.dp
 private val PEEK_CLOSE_SIZE = 28.dp
 
+/** Cua so anh mau cung trong mot phan de khong che han manh ghep / mau nen phia sau. */
+private const val PEEK_ALPHA = 0.85f
+
 /**
  * Cua so anh mau: keo di duoc va chum hai ngon tay de zoom. To nhat bang [maxSize] (canh
  * khung ghep) de nguoi choi so anh mau voi ban co o cung mot co.
@@ -431,6 +397,8 @@ private fun PeekWindow(
             modifier = Modifier
                 .offset { IntOffset(offset.x.roundToInt(), offset.y.roundToInt()) }
                 .size(size)
+                // alpha dat truoc cac lop ve de mo ca cua so (bong, nen lan anh mau).
+                .alpha(PEEK_ALPHA)
                 .shadow(8.dp, RoundedCornerShape(PEEK_CORNER))
                 .clip(RoundedCornerShape(PEEK_CORNER))
                 .background(MaterialTheme.colorScheme.surface)
@@ -738,10 +706,7 @@ private fun PlayArea(
                     slotHeight = slotHeight,
                     margin = margin,
                     isPlaced = false,
-                    // Dich o pha ve (khong phai offset o pha layout) de moi frame keo khong
-                    // phai do lai ca cay layout.
                     modifier = Modifier.graphicsLayer {
-                        // Manh duoc ve o ti le ban co, tam manh dat duoi ngon tay.
                         val position = trayDragPosition.value
                         translationX = position.x - areaOrigin.x -
                                 boardSizePx / cols / 2 - margin.toPx()

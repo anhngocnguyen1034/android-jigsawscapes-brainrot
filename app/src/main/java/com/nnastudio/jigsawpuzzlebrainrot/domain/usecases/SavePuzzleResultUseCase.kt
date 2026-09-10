@@ -11,6 +11,7 @@ class SavePuzzleResultUseCase @Inject constructor(
         puzzleId: String,
         difficulty: Difficulty,
         timeSeconds: Int,
-        moves: Int
-    ) = progressRepository.saveResult(puzzleId, difficulty, timeSeconds, moves)
+        moves: Int,
+        score: Int
+    ) = progressRepository.saveResult(puzzleId, difficulty, timeSeconds, moves, score)
 }

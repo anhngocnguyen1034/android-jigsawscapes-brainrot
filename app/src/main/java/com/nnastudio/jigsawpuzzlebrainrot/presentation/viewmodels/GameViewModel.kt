@@ -9,8 +9,6 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceOffset
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleCategory
-import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleImage
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleArtwork
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleSource
@@ -28,7 +26,6 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.SaveGameUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.SavePuzzleResultUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.SetBoardBackgroundUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.navigation.GameRoute
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.navigation.decodeDeviceImageUri
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -60,7 +57,6 @@ class GameViewModel @Inject constructor(
 
     private val route: GameRoute = savedStateHandle.toRoute()
     private val difficulty: Difficulty = Difficulty.fromId(route.difficultyId)
-    private val deviceImageUri: String? = route.encodedImageUri?.let(::decodeDeviceImageUri)
 
     private val _uiState = MutableStateFlow(GameUiState())
     val uiState: StateFlow<GameUiState> = _uiState.asStateFlow()
@@ -73,15 +69,9 @@ class GameViewModel @Inject constructor(
      */
     private var seed: Long = 0L
 
-    /**
-     * Anh nguoi choi tu chon trong may khong luu duoc: quyen doc URI het khi app dong, mo
-     * lai ban luu se khong doc noi anh nua.
-     */
-    private val canSaveGame: Boolean = deviceImageUri == null
-
     init {
         viewModelScope.launch {
-            val saved = if (canSaveGame) loadSavedGame(route.puzzleId, difficulty) else null
+            val saved = loadSavedGame(route.puzzleId, difficulty)
             if (saved == null || !resume(saved)) newGame()
         }
         autoSave()
@@ -110,7 +100,7 @@ class GameViewModel @Inject constructor(
     /** Bo van dang luu di, chia lai bo manh moi. */
     fun startNewGame() {
         viewModelScope.launch {
-            if (canSaveGame) clearSavedGame(route.puzzleId, difficulty)
+            clearSavedGame(route.puzzleId, difficulty)
             newGame()
         }
     }
@@ -161,7 +151,7 @@ class GameViewModel @Inject constructor(
         timerJob?.cancel()
         _uiState.update { GameUiState(isLoading = true, boardBackground = it.boardBackground) }
 
-        val image = resolveImage()
+        val image = getPuzzleDetail(route.puzzleId)
         if (image == null) {
             _uiState.update {
                 it.copy(isLoading = false, errorMessageRes = R.string.error_puzzle_not_found)
@@ -169,9 +159,8 @@ class GameViewModel @Inject constructor(
             return null
         }
 
-        val source = deviceImageUri?.let { PuzzleSource.Device(it) }
-            ?: PuzzleSource.Asset(image.assetPath)
-        return loadArtwork(source) to generateJigsawPuzzle(image, difficulty, Random(seed))
+        return loadArtwork(PuzzleSource.Asset(image.assetPath)) to
+            generateJigsawPuzzle(image, difficulty, Random(seed))
     }
 
     /**
@@ -180,7 +169,6 @@ class GameViewModel @Inject constructor(
      * khong con gi de choi tiep nen khong ghi ([onSolved] xoa ban luu).
      */
     private fun autoSave() {
-        if (!canSaveGame) return
         viewModelScope.launch {
             _uiState
                 .map { it.playState?.takeIf { play -> !play.isSolved } }
@@ -348,34 +336,18 @@ class GameViewModel @Inject constructor(
         if (paused) timerJob?.cancel() else restartTimer()
     }
 
-    private suspend fun resolveImage(): PuzzleImage? = when {
-        deviceImageUri != null -> PuzzleImage(
-            id = route.puzzleId,
-            title = "",
-            category = PuzzleCategory.BRAINROT,
-            assetPath = ""
-        )
-
-        else -> getPuzzleDetail(route.puzzleId)
-    }
-
     private fun onSolved(moves: Int) {
         timerJob?.cancel()
         val seconds = _uiState.value.elapsedSeconds
+        val finalScore = _uiState.value.score + ScoreRules.solvedBonus(difficulty)
         _uiState.update {
-            it.copy(
-                isSolved = true,
-                draggingPieceId = null,
-                score = it.score + ScoreRules.POINTS_SOLVED
-            )
+            it.copy(isSolved = true, draggingPieceId = null, score = finalScore)
         }
 
-        // Anh nguoi dung tu chon khong luu vao bang thanh tich.
-        if (deviceImageUri != null) return
         viewModelScope.launch {
             // Van da xong: khong con gi de choi tiep, lan sau vao la van moi.
             clearSavedGame(route.puzzleId, difficulty)
-            savePuzzleResult(route.puzzleId, difficulty, seconds, moves)
+            savePuzzleResult(route.puzzleId, difficulty, seconds, moves, finalScore)
         }
     }
 
@@ -389,7 +361,7 @@ class GameViewModel @Inject constructor(
                 // choi se bi lui ve nuoc di cuoi: cu it giay ghi lai gio mot lan.
                 val state = _uiState.value
                 val playState = state.playState
-                if (canSaveGame && playState != null && !state.isSolved &&
+                if (playState != null && !state.isSolved &&
                     state.elapsedSeconds % SAVE_CLOCK_SECONDS == 0
                 ) {
                     persist(playState)

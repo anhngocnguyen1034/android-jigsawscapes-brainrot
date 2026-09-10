@@ -41,6 +41,9 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 /** Goc bo tron cua khung ban co. */
 private val BOARD_CORNER = 12.dp
 
+/** Do duc cua khung ban co: du de thay ranh gioi o ghep, van nhin xuyen ra mau nen. */
+private const val BOARD_ALPHA = 0.32f
+
 /** Zoom ban co toi da: du to de ghep luoi 8x8 tren may nho, chua den muc mat huong nhin chung. */
 private const val MAX_BOARD_ZOOM = 3f
 
@@ -194,7 +197,8 @@ fun JigsawBoardView(
         // Khung ban co ve thang vao lop day chu khong phai mot Box co kich thuoc: zoom to hon
         // vung choi thi rang buoc layout cua cha se kep kich thuoc cua Box lai, con net ve
         // thi khong - no chi bi cat o mep vung choi dung nhu mong doi.
-        val boardColor = AnhnnTheme.extraColors.boardSlot
+        // Khung ban co cung trong mot phan: doi mau nen ban choi la thay doi ca o day.
+        val boardColor = AnhnnTheme.extraColors.boardSlot.copy(alpha = BOARD_ALPHA)
         val boardLeftPx = with(density) { boardLeft.toPx() }
         val boardTopPx = with(density) { boardTop.toPx() }
         var areaRoot by remember { mutableStateOf(Offset.Zero) }

@@ -33,13 +33,21 @@ class ProgressDataSource @Inject constructor(
                 ?: PuzzleProgress.empty(puzzleId, difficulty)
         }
 
-    suspend fun saveResult(puzzleId: String, difficulty: Difficulty, timeSeconds: Int, moves: Int) {
+    suspend fun saveResult(
+        puzzleId: String,
+        difficulty: Difficulty,
+        timeSeconds: Int,
+        moves: Int,
+        score: Int
+    ) {
         val entry = entryKey(puzzleId, difficulty)
         dataStore.edit { prefs ->
             val bestTime = prefs[timeKey(entry)] ?: Int.MAX_VALUE
             val bestMoves = prefs[movesKey(entry)] ?: Int.MAX_VALUE
+            val bestScore = prefs[scoreKey(entry)] ?: 0
             prefs[timeKey(entry)] = minOf(bestTime, timeSeconds)
             prefs[movesKey(entry)] = minOf(bestMoves, moves)
+            prefs[scoreKey(entry)] = maxOf(bestScore, score)
         }
     }
 
@@ -51,6 +59,7 @@ class ProgressDataSource @Inject constructor(
             difficulty = Difficulty.fromId(difficultyId),
             bestTimeSeconds = time,
             bestMoves = prefs[movesKey(this)] ?: 0,
+            bestScore = prefs[scoreKey(this)] ?: 0,
             completed = true
         )
     }
@@ -59,9 +68,11 @@ class ProgressDataSource @Inject constructor(
         const val SEPARATOR = "|"
         const val TIME_PREFIX = "best_time_"
         const val MOVES_PREFIX = "best_moves_"
+        const val SCORE_PREFIX = "best_score_"
 
         fun entryKey(puzzleId: String, difficulty: Difficulty) = "$puzzleId$SEPARATOR${difficulty.id}"
         fun timeKey(entry: String) = intPreferencesKey("$TIME_PREFIX$entry")
         fun movesKey(entry: String) = intPreferencesKey("$MOVES_PREFIX$entry")
+        fun scoreKey(entry: String) = intPreferencesKey("$SCORE_PREFIX$entry")
     }
 }

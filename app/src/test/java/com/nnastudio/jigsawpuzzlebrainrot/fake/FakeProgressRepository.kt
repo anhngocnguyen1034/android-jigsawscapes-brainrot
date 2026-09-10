@@ -23,7 +23,8 @@ class FakeProgressRepository : ProgressRepository {
         puzzleId: String,
         difficulty: Difficulty,
         timeSeconds: Int,
-        moves: Int
+        moves: Int,
+        score: Int
     ) {
         val existing = entries.value.firstOrNull {
             it.puzzleId == puzzleId && it.difficulty == difficulty
@@ -33,6 +34,7 @@ class FakeProgressRepository : ProgressRepository {
             difficulty = difficulty,
             bestTimeSeconds = minOf(existing?.bestTimeSeconds ?: Int.MAX_VALUE, timeSeconds),
             bestMoves = minOf(existing?.bestMoves ?: Int.MAX_VALUE, moves),
+            bestScore = maxOf(existing?.bestScore ?: 0, score),
             completed = true
         )
         entries.value = entries.value.filterNot { it == existing } + updated

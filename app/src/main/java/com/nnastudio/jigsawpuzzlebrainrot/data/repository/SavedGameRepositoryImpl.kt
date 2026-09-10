@@ -4,6 +4,8 @@ import com.nnastudio.jigsawpuzzlebrainrot.data.datasource.local.SavedGameDataSou
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.SavedGame
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.SavedGameRepository
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.catch
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -15,6 +17,9 @@ import javax.inject.Singleton
 class SavedGameRepositoryImpl @Inject constructor(
     private val savedGameDataSource: SavedGameDataSource
 ) : SavedGameRepository {
+
+    override fun observeAll(): Flow<List<SavedGame>> =
+        savedGameDataSource.observeAll().catch { emit(emptyList()) }
 
     override suspend fun load(puzzleId: String, difficulty: Difficulty): SavedGame? =
         runCatching { savedGameDataSource.load(puzzleId, difficulty) }.getOrNull()

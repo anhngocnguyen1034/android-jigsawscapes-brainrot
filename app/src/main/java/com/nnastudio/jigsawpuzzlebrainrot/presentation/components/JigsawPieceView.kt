@@ -5,13 +5,17 @@ import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.Paint
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.asAndroidPath
+import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
+import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -25,14 +29,6 @@ import kotlin.math.roundToInt
 /**
  * Ve mot manh ghep: clip anh goc theo duong bao jigsaw roi ve vien. Chi ve, khong bat cu
  * chi - nguoi goi tu gan gesture (ban co keo tu do, khay vua keo vua cuon ngang).
- *
- * [boardSizePx] la canh ban co tinh bang px - anh duoc ve o dung ti le do roi dich chuyen
- * sao cho dung phan anh thuoc ve manh nay nam trong duong bao. Khay dung mot "ban co ao"
- * nho hon nen cung composable ve duoc manh o moi ti le.
- *
- * Hai thu duoc lam san ngoai pha ve vi ban co co toi 64 manh: duong bao (nhieu doan cong,
- * dung lai moi frame thi ton CPU) va vung anh can lay (chi vai phan tram buc anh, ve ca
- * buc roi clip thi moi manh phai lay mau lai toan bo anh).
  */
 @Composable
 fun JigsawPieceView(
@@ -51,18 +47,12 @@ fun JigsawPieceView(
     val marginPx = with(density) { margin.toPx() }
     val cellWidth = boardSizePx / cols
     val cellHeight = boardSizePx / rows
-    // Be day dai vat thay duoc, tinh theo canh o - manh nho trong khay van phai thay
-    // duoc goc vat, manh to thi vat khong duoc day qua che mat anh.
+
     val bevelPx = with(density) {
         (minOf(cellWidth, cellHeight) * BEVEL_RATIO).coerceIn(BEVEL_MIN.toPx(), BEVEL_MAX.toPx())
     }
     val cutPx = with(density) { CUT_WIDTH.toPx() }
     val shadowPx = with(density) { SHADOW_OFFSET.toPx() }
-    val frameWidth = with(density) { (slotWidth + margin * 2).toPx() }
-    val frameHeight = with(density) { (slotHeight + margin * 2).toPx() }
-    val depth = remember(frameWidth, frameHeight, isPlaced) {
-        depthBrush(frameWidth, frameHeight, if (isPlaced) PLACED_DEPTH else 1f)
-    }
 
     val piecePath = remember(piece.edges, cellWidth, cellHeight, marginPx) {
         jigsawPiecePath(
@@ -84,71 +74,114 @@ fun JigsawPieceView(
         )
     }
 
-    // requiredSize chu khong phai size: ban co zoom to hon vung choi thi rang buoc tu cha
-    // se cat bot khung manh, manh se bi bop lai thay vi to len.
     Canvas(
         modifier = modifier.requiredSize(slotWidth + margin * 2, slotHeight + margin * 2)
     ) {
-        // Manh chua vao o van con nam tren ban co nen do bong xuong duoi-phai cho no noi
-        // len. Bong la vai ban sao cua chinh duong bao lech dan roi to nhat: canvas tang
-        // toc GPU khong ve duoc bong nhoe san cho duong bao lom nhu manh ghep.
-        if (!isPlaced) {
-            repeat(SHADOW_LAYERS) { layer ->
-                val shift = shadowPx * (layer + 1) / SHADOW_LAYERS
-                translate(left = shift, top = shift) {
-                    drawPath(piecePath, Color.Black.copy(alpha = SHADOW_ALPHA))
-                }
-            }
-        }
-        clipPath(piecePath) {
-            translate(left = imageSlice.dstLeft, top = imageSlice.dstTop) {
-                drawImage(
-                    image = image,
-                    srcOffset = imageSlice.srcOffset,
-                    srcSize = imageSlice.srcSize,
-                    dstSize = imageSlice.dstSize
-                )
-            }
-            // Net ve o day deu bi clip cat mat nua ngoai, chi con dai nam trong long manh:
-            // nho vay manh khong lan ra ngoai duong bao khi de len manh khac.
-            //
-            // Goc vat: dai sang chay doc ria tren-trai, dai toi doc ria duoi-phai - keo theo
-            // ca duong num ghep nen num loi ra, hoc lom vao dung nhu manh that.
-            drawPath(path = piecePath, brush = depth, style = Stroke(width = bevelPx * 2f))
-            // Net cat sat ria: manh ghep that bao gio cung co khe toi giua hai manh.
-            drawPath(
-                path = piecePath,
-                color = Color.Black.copy(alpha = if (isPlaced) 0.24f else 0.32f),
-                style = Stroke(width = cutPx * 2f)
-            )
-        }
+        drawJigsawPiece(
+            image = image,
+            piecePath = piecePath,
+            imageSlice = imageSlice,
+            isPlaced = isPlaced,
+            bevelPx = bevelPx,
+            cutPx = cutPx,
+            shadowPx = shadowPx
+        )
     }
 }
 
 /**
- * Vien vat cua manh: anh sang den tu tren-trai nen ria tren-trai bat sang, ria duoi-phai
- * chim vao toi. Chuyen dan giua hai ben de mat vat cong deu chu khong thanh hai vach.
- *
- * [strength] ha do dam cho manh da vao o - buc anh la chinh, khong phai cai luoi cat.
+ * Ve mot manh vao goc (0, 0) cua he toa do hien tai.
+ * Đã sửa lỗi nguồn sáng và nâng cấp bóng đổ (Drop Shadow) mượt mà.
  */
-private fun depthBrush(width: Float, height: Float, strength: Float) = Brush.linearGradient(
-    colorStops = arrayOf(
-        0f to Color.White.copy(alpha = 0.62f * strength),
-        0.42f to Color.White.copy(alpha = 0.12f * strength),
-        0.58f to Color.Black.copy(alpha = 0.12f * strength),
-        1f to Color.Black.copy(alpha = 0.5f * strength)
-    ),
-    start = Offset.Zero,
-    end = Offset(width, height)
-)
+internal fun DrawScope.drawJigsawPiece(
+    image: ImageBitmap,
+    piecePath: Path,
+    imageSlice: ImageSlice,
+    isPlaced: Boolean,
+    bevelPx: Float,
+    cutPx: Float,
+    shadowPx: Float,
+    bevelLayers: Int = BEVEL_LAYERS
+) {
+    // Manh chua vao o van con nam tren ban co nen do bong.
+    // Nâng cấp: Dùng BlurMaskFilter thay vì xếp lớp để bóng mềm mại và chân thực hơn.
+    if (!isPlaced) {
+        drawIntoCanvas { canvas ->
+            val paint = Paint().asFrameworkPaint().apply {
+                color = android.graphics.Color.argb((SHADOW_ALPHA * 255).toInt(), 0, 0, 0)
+                maskFilter = android.graphics.BlurMaskFilter(
+                    shadowPx * 1.5f,
+                    android.graphics.BlurMaskFilter.Blur.NORMAL
+                )
+            }
+            canvas.nativeCanvas.save()
+            canvas.nativeCanvas.translate(shadowPx, shadowPx) // Lệch chéo bóng xuống dưới-phải
+            canvas.nativeCanvas.drawPath(piecePath.asAndroidPath(), paint)
+            canvas.nativeCanvas.restore()
+        }
+    }
+
+    // Manh da vao o thi vien nhat lai, làm bức tranh liền mạch.
+    val strength = if (isPlaced) PLACED_DEPTH else 1f
+    val layers = bevelLayers.coerceAtLeast(1)
+
+    clipPath(piecePath) {
+        translate(left = imageSlice.dstLeft, top = imageSlice.dstTop) {
+            drawImage(
+                image = image,
+                srcOffset = imageSlice.srcOffset,
+                srcSize = imageSlice.srcSize,
+                dstSize = imageSlice.dstSize
+            )
+        }
+
+        // Goc vat: Nguồn sáng chiếu từ TRÊN-TRÁI.
+        repeat(layers) { layer ->
+            val shift = bevelPx * (layer + 1) / layers
+
+            // 1. HIGHLIGHT (Sáng): Dịch XUỐNG DƯỚI, SANG PHẢI để lọt viền Trên-Trái vào trong clip
+            translate(left = shift, top = shift) {
+                drawPath(
+                    path = piecePath,
+                    color = Color.White.copy(alpha = HIGHLIGHT_ALPHA * strength / layers),
+                    style = Stroke(width = bevelPx * BEVEL_WIDTH_RATIO)
+                )
+            }
+
+            // 2. SHADOW (Tối): Dịch LÊN TRÊN, SANG TRÁI để lọt viền Dưới-Phải vào trong clip
+            translate(left = -shift, top = -shift) {
+                drawPath(
+                    path = piecePath,
+                    color = Color.Black.copy(alpha = EDGE_SHADOW_ALPHA * strength / layers),
+                    style = Stroke(width = bevelPx * BEVEL_WIDTH_RATIO)
+                )
+            }
+        }
+
+        // Khe toi sat ria: mảnh ghép thật bao giờ cũng có khe giữa hai mảnh.
+        drawPath(
+            path = piecePath,
+            color = Color.Black.copy(alpha = CUT_ALPHA * strength),
+            style = Stroke(width = cutPx * 2f)
+        )
+    }
+}
+
+private const val BEVEL_LAYERS = 2
+internal const val BEVEL_LAYERS_BAKED = 5
+
+// Đã loại bỏ RIM_ALPHA vì nó làm bẩn màu của viền bắt sáng (Highlight).
+private const val HIGHLIGHT_ALPHA = 0.55f
+private const val EDGE_SHADOW_ALPHA = 0.5f
+private const val BEVEL_WIDTH_RATIO = 1.6f
+
+/** Khe toi sat giua hai manh. */
+private const val CUT_ALPHA = 0.42f
 
 /**
  * Vung anh goc ung voi khung cua mot manh, kem cho dat trong khung.
- *
- * [dstLeft]/[dstTop] la phan le duoi mot pixel anh goc: lam tron o day se lech noi dung so
- * voi duong bao, nen phan le duoc giu lai bang translate.
  */
-private data class ImageSlice(
+internal data class ImageSlice(
     val srcOffset: IntOffset,
     val srcSize: IntSize,
     val dstSize: IntSize,
@@ -156,7 +189,7 @@ private data class ImageSlice(
     val dstTop: Float
 )
 
-private fun imageSliceFor(
+internal fun imageSliceFor(
     image: ImageBitmap,
     piece: JigsawPiece,
     cellWidth: Float,
@@ -167,16 +200,14 @@ private fun imageSliceFor(
     if (boardSizePx <= 0f) {
         return ImageSlice(IntOffset.Zero, IntSize.Zero, IntSize.Zero, 0f, 0f)
     }
-    // Ti le anh goc / ban co: 1 px ban co = scaleX px anh.
+
     val scaleX = image.width / boardSizePx
     val scaleY = image.height / boardSizePx
-    // Goc (0, 0) cua khung manh nam tai diem nay tren ban co.
     val left = piece.col * cellWidth - marginPx
     val top = piece.row * cellHeight - marginPx
     val width = cellWidth + marginPx * 2
     val height = cellHeight + marginPx * 2
 
-    // Lay du mot pixel anh o moi phia cho vien khung khong bi ho khi lam tron.
     val srcLeft = floor(left * scaleX).toInt().coerceIn(0, image.width) - 1
     val srcTop = floor(top * scaleY).toInt().coerceIn(0, image.height) - 1
     val srcRight = ceil((left + width) * scaleX).toInt().coerceIn(0, image.width) + 1
@@ -198,18 +229,16 @@ private fun imageSliceFor(
     )
 }
 
-/** Be day goc vat, tinh theo canh o (bi chan tren/duoi cho moi do kho deu thay duoc). */
-private const val BEVEL_RATIO = 0.04f
-private val BEVEL_MIN = 1.2.dp
-private val BEVEL_MAX = 5.dp
+internal const val BEVEL_RATIO = 0.012f
+internal val BEVEL_MIN = 0.5.dp
+internal val BEVEL_MAX = 1.2.dp
 
-/** Khe toi giua hai manh ke nhau. */
-private val CUT_WIDTH = 0.7.dp
+/** Khe cắt đã được tinh chỉnh thanh mảnh hơn. */
+internal val CUT_WIDTH = 0.4.dp
 
-/** Bong cua manh chua vao o: lech [SHADOW_OFFSET] xuong duoi-phai, xep tu nhieu lop. */
-private val SHADOW_OFFSET = 2.dp
-private const val SHADOW_LAYERS = 4
-private const val SHADOW_ALPHA = 0.055f
+/** Bóng đổ được điều chỉnh cho BlurMaskFilter */
+private val SHADOW_OFFSET = 3.dp
+private const val SHADOW_ALPHA = 0.35f
 
-/** Manh da vao o thi vien vat nhat lai. */
-private const val PLACED_DEPTH = 0.8f
+/** Độ sâu khi đã đặt vào bàn cờ giảm xuống để bức tranh phẳng, liền mạch hơn */
+internal const val PLACED_DEPTH = 0.75f
