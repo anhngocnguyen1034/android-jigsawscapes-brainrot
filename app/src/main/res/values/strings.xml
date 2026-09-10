@@ -2,9 +2,39 @@
     <string name="app_name">Jigsaw Puzzle Brainrot</string>
 
     <!-- Home -->
-    <string name="home_title">Chọn hình</string>
+    <string name="home_title">Xếp hình</string>
     <string name="action_settings">Cài đặt</string>
     <string name="action_back">Quay lại</string>
+    <string name="home_tab_discover">Khám phá</string>
+    <string name="home_tab_daily">Hàng ngày</string>
+    <string name="home_tab_mine">Của tôi</string>
+    <string name="home_daily_badge">Hôm nay</string>
+    <string name="home_daily_title">Ảnh của ngày</string>
+    <string name="home_daily_hint">Mỗi ngày một bức mới</string>
+    <string name="home_section_continue">Đang chơi</string>
+    <string name="home_section_see_all">Xem tất cả</string>
+    <string name="home_empty_mine">Chưa có bức nào đang chơi. Chọn một bức ở tab Khám phá nhé.</string>
+    <string name="mine_tab_ongoing">Đang tiến hành</string>
+    <string name="mine_tab_done">Hoàn thành</string>
+    <string name="mine_tab_collections">Bộ sưu tập</string>
+    <string name="home_empty_done">Chưa hoàn thành bức nào.</string>
+    <string name="home_empty_favorites">Bộ sưu tập còn trống. Mở một bức rồi bấm hình trái tim để thêm vào đây.</string>
+    <string name="home_collection_count">%1$d bức</string>
+    <string name="card_score">%1$d đ</string>
+    <string name="action_play_now">Chơi ngay</string>
+
+    <!-- Bo suu tap -->
+    <string name="category_brainrot">Brainrot</string>
+    <string name="category_meme">Meme</string>
+    <string name="category_animal">Động vật</string>
+    <string name="category_nature">Thiên nhiên</string>
+
+    <!-- Xem truoc -->
+    <string name="action_start_game">Bắt đầu</string>
+    <string name="action_continue_game">Chơi tiếp</string>
+    <string name="preview_progress">Đã ghép %1$d%%</string>
+    <string name="action_favorite">Thêm vào bộ sưu tập</string>
+    <string name="action_unfavorite">Bỏ khỏi bộ sưu tập</string>
 
     <!-- Game -->
     <string name="action_pause">Tạm dừng</string>
@@ -12,8 +42,17 @@
     <string name="action_new_game">Ván mới</string>
     <string name="game_progress">Đã ghép %1$d/%2$d mảnh</string>
     <string name="action_hint">Gợi ý (%1$d)</string>
-    <string name="action_pick_image">Ảnh của bạn</string>
     <string name="game_solved">Hoàn thành!</string>
+    <string name="game_score">%1$d điểm</string>
+    <string name="action_change_background">Đổi hình nền</string>
+    <string name="action_show_edge_pieces">Chỉ hiện mảnh viền</string>
+    <string name="action_show_all_pieces">Hiện lại tất cả mảnh</string>
+    <string name="background_default">Mặc định</string>
+    <string name="background_cream">Giấy kem</string>
+    <string name="background_wood">Gỗ</string>
+    <string name="background_grey">Xám</string>
+    <string name="background_night">Xanh đêm</string>
+    <string name="background_purple">Tím</string>
     <string name="action_clean_pieces">Dọn mảnh rời về khay</string>
     <string name="action_show_image">Hiện ảnh mẫu</string>
     <string name="action_hide_image">Tắt ảnh mẫu</string>

@@ -1,10 +1,12 @@
 package com.nnastudio.jigsawpuzzlebrainrot.di
 
+import com.nnastudio.jigsawpuzzlebrainrot.data.repository.FavoriteRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.ProgressRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.PuzzleImageRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.PuzzleRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.SavedGameRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.SettingsRepositoryImpl
+import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.FavoriteRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.ProgressRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.PuzzleImageRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.PuzzleRepository
@@ -39,4 +41,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindSettingsRepository(impl: SettingsRepositoryImpl): SettingsRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindFavoriteRepository(impl: FavoriteRepositoryImpl): FavoriteRepository
 }

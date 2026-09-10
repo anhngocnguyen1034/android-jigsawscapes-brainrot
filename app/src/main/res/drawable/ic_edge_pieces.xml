@@ -1,0 +1,24 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+    <!-- Khung ngoai: cac manh cua 4 canh. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,3h18v3.2h-2.2V5.2H5.2v1H3z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,20.8h18v-3.2h-2.2v1H5.2v-1H3z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M3,3v18h3.2v-2.2H5.2V5.2h1V3z" />
+    <path
+        android:fillColor="@android:color/white"
+        android:pathData="M20.8,3v18h-3.2v-2.2h1V5.2h-1V3z" />
+    <!-- Long trong de mo: cac manh giua chua den luot. -->
+    <path
+        android:fillColor="@android:color/white"
+        android:fillAlpha="0.35"
+        android:pathData="M8.6,8.6h6.8v6.8h-6.8z" />
+</vector>

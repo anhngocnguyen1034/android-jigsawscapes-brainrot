@@ -19,8 +19,20 @@ data class SavedGame(
     val trayOrder: List<Int>,
     val moves: Int,
     val elapsedSeconds: Int,
-    val hintsLeft: Int
+    val hintsLeft: Int,
+    val score: Int
 ) {
+
+    /**
+     * Tien do cua van, tinh theo % so manh da vao dung o. Man hinh chinh hien so nay tren
+     * the anh de nguoi choi biet buc nao dang do dang.
+     */
+    val progressPercent: Int
+        get() = if (placements.isEmpty()) {
+            0
+        } else {
+            placements.count { it.isPlaced } * 100 / placements.size
+        }
 
     /**
      * Dung lai trang thai van tren [puzzle] vua cat lai tu [seed]. Tra ve null khi ban luu
@@ -52,7 +64,8 @@ data class SavedGame(
             seed: Long,
             playState: PuzzlePlayState,
             elapsedSeconds: Int,
-            hintsLeft: Int
+            hintsLeft: Int,
+            score: Int
         ) = SavedGame(
             puzzleId = puzzleId,
             difficulty = playState.puzzle.difficulty,
@@ -62,7 +75,8 @@ data class SavedGame(
             trayOrder = playState.trayOrder,
             moves = playState.moves,
             elapsedSeconds = elapsedSeconds,
-            hintsLeft = hintsLeft
+            hintsLeft = hintsLeft,
+            score = score
         )
     }
 }

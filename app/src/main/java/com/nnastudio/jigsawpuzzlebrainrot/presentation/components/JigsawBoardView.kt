@@ -1,36 +1,85 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.components
 
-import androidx.compose.foundation.background
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.offset
-import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
+
+/** Goc bo tron cua khung ban co. */
+private val BOARD_CORNER = 12.dp
+
+/** Do duc cua khung ban co: du de thay ranh gioi o ghep, van nhin xuyen ra mau nen. */
+private const val BOARD_ALPHA = 0.32f
+
+/** Zoom ban co toi da: du to de ghep luoi 8x8 tren may nho, chua den muc mat huong nhin chung. */
+private const val MAX_BOARD_ZOOM = 3f
+
+/**
+ * Zoom la phong to ca vung choi (khung ban co lan cho dau manh roi hai ben ngoai khung), nen
+ * keo duoc het phan vung choi tran ra ngoai man hinh - do theo canh vung choi chu khong theo
+ * canh ban co: do theo ban co thi cua so nhin bi khoa vao khung, manh roi dau ngoai khung se
+ * ra ngoai man hinh va khong the keo tro lai.
+ */
+private fun panLimit(areaPx: Int, zoom: Float) = (areaPx * (zoom - 1f) / 2f).coerceAtLeast(0f)
+
+/**
+ * Doi zoom / vi tri ban co sao cho diem [focus] (toa do trong vung choi) van nam duoi ngon
+ * tay sau khi phong to, roi cat [pan] lai trong pham vi cho phep.
+ */
+private fun PointerInputScope.applyZoom(
+    focus: Offset,
+    zoomChange: Float,
+    panChange: Offset,
+    zoom: Float,
+    pan: Offset,
+    onChange: (zoom: Float, pan: Offset) -> Unit
+) {
+    val next = (zoom * zoomChange).coerceIn(1f, MAX_BOARD_ZOOM)
+    val fromCenter = focus - Offset(size.width / 2f, size.height / 2f)
+    val moved = fromCenter - (fromCenter - pan) * (next / zoom) + panChange
+    val limitX = panLimit(size.width, next)
+    val limitY = panLimit(size.height, next)
+    onChange(
+        next,
+        Offset(
+            x = moved.x.coerceIn(-limitX, limitX),
+            y = moved.y.coerceIn(-limitY, limitY)
+        )
+    )
+}
 
 /**
  * Vung choi: khung ban co vuong can giua, con manh roi thi di chuyen tu do trong ca vung
@@ -39,9 +88,14 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
  * Moi manh duoc dat tuyet doi theo toa do "don vi ban co" (1.0 = canh ban co) nen state
  * khong phu thuoc kich thuoc thuc te cua man hinh.
  *
+ * Chum hai ngon tay de zoom khung ban co (den [MAX_BOARD_ZOOM] lan) va keo de di chuyen no.
+ * Zoom chi doi canh ban co that su ([boardSizePx]) chu khong scale mot lop anh: o, manh, le
+ * cua manh va ca doan keo deu do tu canh nay nen tat ca to len dung ti le va toa do "don vi
+ * ban co" cua state khong doi.
+ *
  * [onBoardMeasured] tra ve goc tren-trai cua khung (toa do goc cua cay layout), canh ban co
- * tinh bang px va vung manh roi duoc phep nam - de man hinh doi diem tha ngon tay sang toa
- * do ban co.
+ * hien tai va canh luc chua zoom (tinh bang px), cung vung manh roi duoc phep nam - de man
+ * hinh doi diem tha ngon tay sang toa do ban co.
  *
  * Trong luc keo, manh chi duoc dich bang graphicsLayer tu mot bien local: doi state qua
  * ViewModel moi frame se recompose ca ban co (den 64 manh, moi manh mot Canvas) nen keo bi
@@ -63,7 +117,12 @@ fun JigsawBoardView(
      * tren nen cho cu tren ban co de trong va khong nhan cham.
      */
     flyingPieceIds: Set<Int>,
-    onBoardMeasured: (origin: Offset, sizePx: Float, bounds: PieceBounds) -> Unit,
+    onBoardMeasured: (
+        origin: Offset,
+        sizePx: Float,
+        baseSizePx: Float,
+        bounds: PieceBounds
+    ) -> Unit,
     onPieceDragStart: (Int) -> Unit,
     /** Manh vien vua hut vao o giua luc keo: dat va khoa no ngay, luot keo ket thuc. */
     onPieceDragSnap: (pieceId: Int, dx: Float, dy: Float) -> Unit,
@@ -85,35 +144,89 @@ fun JigsawBoardView(
     // Gesture khong duoc khoi dong lai moi lan state doi nen phai doc state qua bien nay.
     val latestState = rememberUpdatedState(playState)
 
-    BoxWithConstraints(modifier = modifier.fillMaxSize()) {
-        val boardSize = minOf(maxWidth, maxHeight)
-        val boardLeft = (maxWidth - boardSize) / 2
-        val boardTop = (maxHeight - boardSize) / 2
+    // Zoom va vi tri ban co (pan tinh bang px, tu tam vung choi). Van moi thi ve lai tu dau.
+    var zoom by remember(playState.puzzle.image) { mutableFloatStateOf(1f) }
+    var pan by remember(playState.puzzle.image) { mutableStateOf(Offset.Zero) }
+
+    BoxWithConstraints(
+        modifier = modifier
+            .fillMaxSize()
+            // Zoom roi thi ban co tran ra ngoai vung choi: cat bot cho khoi de len dong ho
+            // va khay. Luc chua zoom thi khong cat, de manh keo xuong khay con thay duoc.
+            .then(if (zoom > 1f) Modifier.clipToBounds() else Modifier)
+            .pointerInput(Unit) {
+                detectTransformGestures { centroid, panChange, zoomChange, _ ->
+                    applyZoom(
+                        focus = centroid,
+                        zoomChange = zoomChange,
+                        panChange = panChange,
+                        zoom = zoom,
+                        pan = pan
+                    ) { nextZoom, nextPan ->
+                        zoom = nextZoom
+                        pan = nextPan
+                    }
+                }
+            }
+    ) {
         val density = LocalDensity.current
+        val baseBoard = minOf(maxWidth, maxHeight)
+        val boardSize = baseBoard * zoom
+        val panDp = with(density) { DpOffset(pan.x.toDp(), pan.y.toDp()) }
+        val boardLeft = (maxWidth - boardSize) / 2 + panDp.x
+        val boardTop = (maxHeight - boardSize) / 2 + panDp.y
         val boardSizePx = with(density) { boardSize.toPx() }
+        val baseBoardPx = with(density) { baseBoard.toPx() }
         val slotWidth = boardSize / cols
         val slotHeight = boardSize / rows
         val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
-        // Vung manh roi: ca vung choi, do theo goc cua khung ban co.
+        // Vung manh roi: ca vung choi, do theo goc cua khung ban co luc chua zoom. Zoom chi
+        // doi cach nhin nen cho dau manh khong duoc co lai theo, khong thi manh roi dang o
+        // ngoai khung se bi cat ve trong khung ngay khi nguoi choi phong to.
+        val baseLeft = (maxWidth - baseBoard) / 2
+        val baseTop = (maxHeight - baseBoard) / 2
         val bounds = with(density) {
             PieceBounds(
-                minX = -boardLeft.toPx() / boardSizePx,
-                minY = -boardTop.toPx() / boardSizePx,
-                maxX = (maxWidth - boardLeft).toPx() / boardSizePx - 1f / cols,
-                maxY = (maxHeight - boardTop).toPx() / boardSizePx - 1f / rows
+                minX = -baseLeft.toPx() / baseBoardPx,
+                minY = -baseTop.toPx() / baseBoardPx,
+                maxX = (maxWidth - baseLeft).toPx() / baseBoardPx - 1f / cols,
+                maxY = (maxHeight - baseTop).toPx() / baseBoardPx - 1f / rows
             )
         }
 
-        Box(
+        // Khung ban co ve thang vao lop day chu khong phai mot Box co kich thuoc: zoom to hon
+        // vung choi thi rang buoc layout cua cha se kep kich thuoc cua Box lai, con net ve
+        // thi khong - no chi bi cat o mep vung choi dung nhu mong doi.
+        // Khung ban co cung trong mot phan: doi mau nen ban choi la thay doi ca o day.
+        val boardColor = AnhnnTheme.extraColors.boardSlot.copy(alpha = BOARD_ALPHA)
+        val boardLeftPx = with(density) { boardLeft.toPx() }
+        val boardTopPx = with(density) { boardTop.toPx() }
+        var areaRoot by remember { mutableStateOf(Offset.Zero) }
+
+        Canvas(
             modifier = Modifier
-                .offset(x = boardLeft, y = boardTop)
-                .size(boardSize)
-                .onGloballyPositioned {
-                    onBoardMeasured(it.positionInRoot(), boardSizePx, bounds)
-                }
-                .clip(RoundedCornerShape(12.dp))
-                .background(AnhnnTheme.extraColors.boardSlot)
-        )
+                .fillMaxSize()
+                .onGloballyPositioned { areaRoot = it.positionInRoot() }
+        ) {
+            drawRoundRect(
+                color = boardColor,
+                topLeft = Offset(boardLeftPx, boardTopPx),
+                size = Size(boardSizePx, boardSizePx),
+                cornerRadius = CornerRadius(BOARD_CORNER.toPx())
+            )
+        }
+
+        // Goc khung tinh thang tu goc vung choi + doan da zoom/keo: doc positionInRoot cua
+        // mot Box da bi cat se cho goc sai khi ban co tran ra ngoai vung choi.
+        val measured = rememberUpdatedState(onBoardMeasured)
+        LaunchedEffect(areaRoot, boardLeftPx, boardTopPx, boardSizePx, baseBoardPx, bounds) {
+            measured.value(
+                Offset(areaRoot.x + boardLeftPx, areaRoot.y + boardTopPx),
+                boardSizePx,
+                baseBoardPx,
+                bounds
+            )
+        }
 
         playState.puzzle.pieces.forEach { piece ->
             val placement = playState.placements[piece.id] ?: return@forEach

@@ -1,6 +1,7 @@
 package com.nnastudio.jigsawpuzzlebrainrot.domain.usecases
 
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.AppSettings
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.SettingsRepository
 import kotlinx.coroutines.flow.Flow
@@ -28,4 +29,11 @@ class ToggleVibrationUseCase @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) {
     suspend operator fun invoke(enabled: Boolean) = settingsRepository.setVibrationEnabled(enabled)
+}
+
+class SetBoardBackgroundUseCase @Inject constructor(
+    private val settingsRepository: SettingsRepository
+) {
+    suspend operator fun invoke(background: BoardBackground) =
+        settingsRepository.setBoardBackground(background)
 }

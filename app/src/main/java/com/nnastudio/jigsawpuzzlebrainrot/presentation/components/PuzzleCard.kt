@@ -21,6 +21,8 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import coil.compose.AsyncImage
+import androidx.compose.ui.res.stringResource
+import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleCategory
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleImage
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnGradients
@@ -32,7 +34,10 @@ fun PuzzleCard(
     puzzle: PuzzleImage,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    bestTimeLabel: String? = null
+    /** % da ghep cua van dang do dang; null (chua choi lan nao) thi khong hien gi. */
+    progressPercent: Int? = null,
+    /** Diem da an duoc o buc nay; co diem thi o goc tren-phai hien diem thay cho %. */
+    score: Int? = null
 ) {
     Column(
         modifier = modifier
@@ -59,10 +64,27 @@ fun PuzzleCard(
                     style = MaterialTheme.typography.labelSmall,
                     color = Color.White,
                     modifier = Modifier
-                        .align(Alignment.TopEnd)
+                        // Goc tren-phai danh cho % tien do.
+                        .align(Alignment.TopStart)
                         .padding(8.dp)
                         .clip(RoundedCornerShape(8.dp))
                         .background(AnhnnGradients.primaryHorizontal())
+                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                )
+            }
+            val badge = score?.let { stringResource(R.string.card_score, it) }
+                ?: progressPercent?.let { "$it%" }
+            if (badge != null) {
+                Text(
+                    text = badge,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = Color.White,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(8.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        // Nen mo de doc duoc so tren moi buc anh, van thay anh ben duoi.
+                        .background(Color.Black.copy(alpha = BADGE_ALPHA))
                         .padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
@@ -74,16 +96,11 @@ fun PuzzleCard(
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         )
-        if (bestTimeLabel != null) {
-            Text(
-                text = bestTimeLabel,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(start = 12.dp, bottom = 12.dp)
-            )
-        }
     }
 }
+
+/** Do duc cua o dung % tien do tren anh. */
+private const val BADGE_ALPHA = 0.45f
 
 private val previewPuzzle = PuzzleImage(
     id = "tralalero",

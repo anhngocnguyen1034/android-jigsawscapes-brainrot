@@ -11,7 +11,16 @@ enum class Difficulty(val id: String, val rows: Int, val cols: Int) {
     EXPERT("expert", 6, 6),
 
     /** 64 manh - muc mac dinh, moi buc anh duoc cat thanh 8x8. */
-    MASTER("master", 8, 8);
+    MASTER("master", 8, 8),
+
+    /** 100 manh. */
+    GRAND("grand", 10, 10),
+
+    /** 225 manh. */
+    EPIC("epic", 15, 15),
+
+    /** 400 manh. */
+    LEGEND("legend", 20, 20);
 
     val pieceCount: Int get() = rows * cols
 
@@ -19,5 +28,11 @@ enum class Difficulty(val id: String, val rows: Int, val cols: Int) {
         fun fromId(id: String?): Difficulty = entries.firstOrNull { it.id == id } ?: DEFAULT
 
         val DEFAULT = MASTER
+
+        /**
+         * Cac moc so manh nguoi choi duoc chon o man xem truoc. Cac muc con lai giu lai de
+         * doc duoc ban luu / thanh tich cu.
+         */
+        val PIECE_OPTIONS = listOf(MASTER, GRAND, EPIC, LEGEND)
     }
 }

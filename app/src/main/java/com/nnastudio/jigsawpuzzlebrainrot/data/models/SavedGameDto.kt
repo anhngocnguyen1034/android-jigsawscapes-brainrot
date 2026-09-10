@@ -19,7 +19,9 @@ data class SavedGameDto(
     val trayOrder: List<Int> = emptyList(),
     val moves: Int = 0,
     val elapsedSeconds: Int = 0,
-    val hintsLeft: Int = 0
+    val hintsLeft: Int = 0,
+    /** Ban luu cu (truoc khi co diem) doc ra 0 diem. */
+    val score: Int = 0
 )
 
 @Serializable
@@ -49,7 +51,8 @@ fun SavedGameDto.toDomain(): SavedGame = SavedGame(
     trayOrder = trayOrder,
     moves = moves,
     elapsedSeconds = elapsedSeconds,
-    hintsLeft = hintsLeft
+    hintsLeft = hintsLeft,
+    score = score
 )
 
 fun SavedGame.toDto(): SavedGameDto = SavedGameDto(
@@ -69,5 +72,6 @@ fun SavedGame.toDto(): SavedGameDto = SavedGameDto(
     trayOrder = trayOrder,
     moves = moves,
     elapsedSeconds = elapsedSeconds,
-    hintsLeft = hintsLeft
+    hintsLeft = hintsLeft,
+    score = score
 )

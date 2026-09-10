@@ -3,6 +3,10 @@ package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.settings
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -25,6 +29,7 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.AnhnnThemeSwitch
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.SettingsViewModel
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun SettingsScreen(
     onBack: () -> Unit,
@@ -36,6 +41,10 @@ fun SettingsScreen(
         (settings.themeMode == ThemeMode.SYSTEM && isSystemInDarkTheme())
 
     SettingsContent(
+        modifier = Modifier
+            // Thanh he thong dang bi an cho ca app, nhung cho status bar co the la notch /
+            // camera nen van chua cho no. Phan nav bar duoi thi dung duoc het.
+            .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility),
         settings = settings,
         isDarkTheme = isDarkTheme,
         onThemeToggle = { viewModel.onThemeToggled(isDarkTheme) },

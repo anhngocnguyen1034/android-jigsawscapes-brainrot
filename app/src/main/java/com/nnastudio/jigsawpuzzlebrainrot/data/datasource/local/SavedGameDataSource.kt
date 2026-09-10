@@ -9,7 +9,9 @@ import com.nnastudio.jigsawpuzzlebrainrot.data.models.toDomain
 import com.nnastudio.jigsawpuzzlebrainrot.data.models.toDto
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.SavedGame
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.serialization.json.Json
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,6 +30,18 @@ class SavedGameDataSource @Inject constructor(
     suspend fun load(puzzleId: String, difficulty: Difficulty): SavedGame? {
         val raw = dataStore.data.first()[gameKey(puzzleId, difficulty)] ?: return null
         return runCatching { json.decodeFromString<SavedGameDto>(raw).toDomain() }.getOrNull()
+    }
+
+    /**
+     * Moi van dang luu, doc lai moi khi DataStore doi. Ban luu hong thi bo qua ban do chu
+     * khong lam hong ca danh sach.
+     */
+    fun observeAll(): Flow<List<SavedGame>> = dataStore.data.map { preferences ->
+        preferences.asMap().mapNotNull { (key, value) ->
+            if (!key.name.startsWith(PREFIX)) return@mapNotNull null
+            val raw = value as? String ?: return@mapNotNull null
+            runCatching { json.decodeFromString<SavedGameDto>(raw).toDomain() }.getOrNull()
+        }
     }
 
     suspend fun save(game: SavedGame) {

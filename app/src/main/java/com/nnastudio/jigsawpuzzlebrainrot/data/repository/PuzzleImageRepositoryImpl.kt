@@ -25,6 +25,5 @@ class PuzzleImageRepositoryImpl @Inject constructor(
 
     private fun PuzzleSource.seedText(): String = when (this) {
         is PuzzleSource.Asset -> path
-        is PuzzleSource.Device -> uri
     }
 }

@@ -1,6 +1,7 @@
 package com.nnastudio.jigsawpuzzlebrainrot.domain
 
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.Difficulty
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceOffset
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
@@ -36,6 +37,13 @@ class PuzzlePlayStateTest {
             },
             trayOrder = emptyList()
         )
+    }
+
+    /** Doan can keo de [piece] dung ngay canh o cua no, con lech [gap] tren truc x. */
+    private fun offsetTo(state: PuzzlePlayState, piece: JigsawPiece, gap: Float): PieceOffset {
+        val current = state.placements.getValue(piece.id).position
+        val target = state.targetOf(piece)
+        return PieceOffset(target.x - current.x + gap, target.y - current.y)
     }
 
     private companion object {
@@ -124,7 +132,9 @@ class PuzzlePlayStateTest {
     @Test
     fun `should return a loose piece to any slot in the tray`() {
         var state = newTrayState()
-        val piece = puzzle.pieces.first()
+        // Manh giua canh: [LOOSE_SPOT] van con trong vung hut cua goc khung nen manh goc
+        // tha o day la khoa luon, khong con roi de tra ve khay.
+        val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
         state = state.releaseFromTray(piece.id, LOOSE_SPOT)
         val trayBefore = state.trayOrder
 
@@ -360,6 +370,84 @@ class PuzzlePlayStateTest {
         val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
 
         assertNull(state.dragSnapOffset(piece.id, 0.4f, 0.4f))
+    }
+
+    @Test
+    fun `should pull a corner piece into its slot from farther than an edge piece`() {
+        val state = newBoardState()
+        val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
+        val edge = puzzle.pieces.first { it.row == 0 && it.col == 1 }
+        // Luoi 3x3: nguong thuong la 0.06, nguong cua manh goc la 0.30.
+        val gap = 0.10f
+
+        val edgeDrag = offsetTo(state, edge, gap)
+        val cornerDrag = offsetTo(state, corner, gap)
+
+        assertNull(state.dragSnapOffset(edge.id, edgeDrag.x, edgeDrag.y))
+        val snap = state.dragSnapOffset(corner.id, cornerDrag.x, cornerDrag.y)
+
+        assertEquals(-gap, snap!!.x, TOLERANCE)
+        assertEquals(0f, snap.y, TOLERANCE)
+    }
+
+    @Test
+    fun `should pull a corner piece into its slot from almost a piece away`() {
+        val state = newBoardState()
+        val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
+        // Luoi 3x3: mot manh rong 0.333, nguong cua manh goc la 0.30 - keo den gan goc
+        // khung la manh vao cho, khong phai dat trung khop.
+        val gap = 0.25f
+
+        val snap = offsetTo(state, corner, gap).let { state.dragSnapOffset(corner.id, it.x, it.y) }
+
+        assertEquals(-gap, snap!!.x, TOLERANCE)
+        assertEquals(0f, snap.y, TOLERANCE)
+    }
+
+    @Test
+    fun `should put a corner piece in its slot instead of gluing it to a loose neighbour`() {
+        val state = newBoardState()
+        val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
+        val neighbour = puzzle.pieces.first { it.row == 0 && it.col == 1 }
+        val target = state.targetOf(corner)
+        // Tha manh goc dung vao cho ma tuong quan hai manh doi hoi (manh ke ben con roi),
+        // nhung cho do van nam trong vung hut cua goc khung: goc khung phai thang.
+        val loose = state.placements.getValue(neighbour.id).position
+        val glued = PieceOffset(loose.x - 1f / puzzle.difficulty.cols, loose.y)
+        val staged = state
+            .withBounds(PieceBounds(minX = -1f, minY = -1f, maxX = 2f, maxY = 2f))
+            .let {
+                it.copy(
+                    placements = it.placements + (corner.id to
+                        it.placements.getValue(corner.id).copy(position = glued))
+                )
+            }
+
+        val dropped = staged.dropPiece(corner.id)
+
+        val placement = dropped.placements.getValue(corner.id)
+        assertTrue(placement.isPlaced)
+        assertEquals(target.x, placement.position.x, TOLERANCE)
+        assertEquals(target.y, placement.position.y, TOLERANCE)
+        // Manh ke ben con roi thi khong bi keo theo vao khung.
+        assertFalse(dropped.placements.getValue(neighbour.id).isPlaced)
+    }
+
+    @Test
+    fun `should snap a corner piece into its slot when the finger is lifted`() {
+        val state = newBoardState()
+        val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
+        val target = state.targetOf(corner)
+
+        val drag = offsetTo(state, corner, 0.10f)
+        val dropped = state
+            .movePiece(corner.id, drag.x, drag.y)
+            .dropPiece(corner.id)
+
+        val placement = dropped.placements.getValue(corner.id)
+        assertTrue(placement.isPlaced)
+        assertEquals(target.x, placement.position.x, TOLERANCE)
+        assertEquals(target.y, placement.position.y, TOLERANCE)
     }
 
     @Test

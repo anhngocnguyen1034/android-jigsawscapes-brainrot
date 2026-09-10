@@ -38,6 +38,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 import kotlin.math.roundToInt
@@ -46,7 +47,8 @@ import kotlin.math.roundToInt
  * Khay manh ghep nam ngang phia duoi ban co, cuon ngang.
  *
  * Khay luon hien du da het manh: keo mot manh roi tu tren xuong day la manh tro ve khay,
- * chen dung cho vua tha trong danh sach.
+ * chen dung cho vua tha trong danh sach. Danh sach hien ra do nguoi goi truyen vao ([pieces])
+ * nen man hinh loc bot duoc, con thu tu that cua khay van nam trong [playState].
  *
  * Cho cua manh vua nhac len thu dan ve 0 (khong bien mat ngay) va no lai neu manh duoc tha
  * xuong khay, con cac manh xung quanh truot sang cho moi; nho vay keo ra / them lai khong
@@ -62,6 +64,11 @@ import kotlin.math.roundToInt
 @Composable
 fun JigsawTrayView(
     playState: PuzzlePlayState,
+    /**
+     * Cac manh hien trong khay, theo dung thu tu hien thi. Thuong la
+     * [PuzzlePlayState.trayPieces], nhung man hinh co the loc bot (vi du chi hien manh vien).
+     */
+    pieces: List<JigsawPiece>,
     image: ImageBitmap,
     draggedPieceId: Int?,
     /** Manh dang bay tu khay vao o cua no (goi y): cho cu trong khay de trong. */
@@ -89,13 +96,14 @@ fun JigsawTrayView(
             // neu cao khay chay theo ban co thi hai ben do lan nhau.
             .height(maxPieceSize * (1f + TAB_RATIO * 2) + TRAY_PADDING * 2)
             .clip(RoundedCornerShape(16.dp))
-            .background(AnhnnTheme.extraColors.boardSlot),
+            // Nen khay trong mot phan de mau nen ban choi nhin xuyen qua duoc.
+            .background(AnhnnTheme.extraColors.boardSlot.copy(alpha = TRAY_ALPHA)),
         state = listState,
         contentPadding = PaddingValues(horizontal = 12.dp, vertical = TRAY_PADDING),
         horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        items(items = playState.trayPieces, key = { it.id }) { piece ->
+        items(items = pieces, key = { it.id }) { piece ->
             val coordinates = remember { mutableStateOf<LayoutCoordinates?>(null) }
             // Manh dang duoc keo / dang bay hien o lop noi ben tren: cho cu trong khay thu
             // dan ve 0 cho cac manh phia sau don vao, tha lai trong khay thi cho no ra.
@@ -198,6 +206,9 @@ fun trayBoardSizePx(
 val TRAY_PIECE_SIZE = 64.dp
 
 private val TRAY_PADDING = 8.dp
+
+/** Do duc cua nen khay: du de tach khay khoi ban co, van thay mau nen phia sau. */
+private const val TRAY_ALPHA = 0.32f
 
 /** Thoi gian cho trong khay thu lai / no ra khi manh roi khoi khay hay tra ve khay (ms). */
 private const val TRAY_SLOT_DURATION = 220

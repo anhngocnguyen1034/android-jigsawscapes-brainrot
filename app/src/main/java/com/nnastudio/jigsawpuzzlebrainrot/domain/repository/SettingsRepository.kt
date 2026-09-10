@@ -1,6 +1,7 @@
 package com.nnastudio.jigsawpuzzlebrainrot.domain.repository
 
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.AppSettings
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import kotlinx.coroutines.flow.Flow
 
@@ -10,4 +11,5 @@ interface SettingsRepository {
     suspend fun setSoundEnabled(enabled: Boolean)
     suspend fun setVibrationEnabled(enabled: Boolean)
     suspend fun setLanguageCode(code: String)
+    suspend fun setBoardBackground(background: BoardBackground)
 }

@@ -25,8 +25,11 @@ class ProgressRepositoryImpl @Inject constructor(
         puzzleId: String,
         difficulty: Difficulty,
         timeSeconds: Int,
-        moves: Int
+        moves: Int,
+        score: Int
     ) {
-        runCatching { progressDataSource.saveResult(puzzleId, difficulty, timeSeconds, moves) }
+        runCatching {
+            progressDataSource.saveResult(puzzleId, difficulty, timeSeconds, moves, score)
+        }
     }
 }

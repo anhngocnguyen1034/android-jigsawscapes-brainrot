@@ -1,8 +1,10 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels
 
 import androidx.compose.runtime.Immutable
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleArtwork
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ScoreRules
 
 @Immutable
 data class GameUiState(
@@ -25,7 +27,13 @@ data class GameUiState(
      */
     val cleaningPieceIds: List<Int> = emptyList(),
     val elapsedSeconds: Int = 0,
+    /** Diem da an trong van nay, xem [ScoreRules]. */
+    val score: Int = 0,
     val isPaused: Boolean = false,
+    /** Chi hien manh cua 4 canh trong khay: loc de nguoi choi dung khung truoc. */
+    val edgePiecesOnly: Boolean = false,
+    /** Nen ban choi dang dung, nguoi choi doi duoc ngay trong van. */
+    val boardBackground: BoardBackground = BoardBackground.DEFAULT,
     val isSolved: Boolean = false,
     val errorMessageRes: Int? = null
 ) {

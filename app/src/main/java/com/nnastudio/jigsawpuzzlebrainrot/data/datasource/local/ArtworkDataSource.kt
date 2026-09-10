@@ -8,7 +8,6 @@ import android.graphics.Color
 import android.graphics.LinearGradient
 import android.graphics.Paint
 import android.graphics.Shader
-import android.net.Uri
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleSource
 import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CoroutineDispatcher
@@ -81,7 +80,6 @@ class ArtworkDataSource @Inject constructor(
 
     private fun openStream(source: PuzzleSource): InputStream? = when (source) {
         is PuzzleSource.Asset -> context.assets.open(source.path)
-        is PuzzleSource.Device -> context.contentResolver.openInputStream(Uri.parse(source.uri))
     }
 
     private fun sampleSizeFor(width: Int, height: Int, maxDimension: Int): Int {

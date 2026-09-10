@@ -9,6 +9,8 @@ data class PuzzleProgress(
     val difficulty: Difficulty,
     val bestTimeSeconds: Int,
     val bestMoves: Int,
+    /** Diem cao nhat dat duoc o buc nay - man hinh chinh hien ngay tren the anh. */
+    val bestScore: Int = 0,
     val completed: Boolean
 ) {
     companion object {
@@ -17,6 +19,7 @@ data class PuzzleProgress(
             difficulty = difficulty,
             bestTimeSeconds = 0,
             bestMoves = 0,
+            bestScore = 0,
             completed = false
         )
     }

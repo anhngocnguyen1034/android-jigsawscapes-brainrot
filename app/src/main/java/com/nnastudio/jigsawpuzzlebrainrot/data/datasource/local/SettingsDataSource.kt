@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.AppSettings
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -22,7 +23,8 @@ class SettingsDataSource @Inject constructor(
             themeMode = ThemeMode.fromValue(prefs[THEME_MODE]),
             soundEnabled = prefs[SOUND_ENABLED] ?: true,
             vibrationEnabled = prefs[VIBRATION_ENABLED] ?: true,
-            languageCode = prefs[LANGUAGE_CODE] ?: "en"
+            languageCode = prefs[LANGUAGE_CODE] ?: "en",
+            boardBackground = BoardBackground.fromValue(prefs[BOARD_BACKGROUND])
         )
     }
 
@@ -34,6 +36,9 @@ class SettingsDataSource @Inject constructor(
 
     suspend fun setLanguageCode(code: String) = edit { it[LANGUAGE_CODE] = code }
 
+    suspend fun setBoardBackground(background: BoardBackground) =
+        edit { it[BOARD_BACKGROUND] = background.value }
+
     private suspend fun edit(block: (androidx.datastore.preferences.core.MutablePreferences) -> Unit) {
         dataStore.edit(block)
     }
@@ -43,5 +48,6 @@ class SettingsDataSource @Inject constructor(
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
         val LANGUAGE_CODE = stringPreferencesKey("language_code")
+        val BOARD_BACKGROUND = stringPreferencesKey("board_background")
     }
 }
