@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -38,6 +39,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
@@ -139,6 +141,9 @@ private fun HomeContent(
             onSettingsClick = onSettingsClick
         )
 
+        // Thanh dieu huong noi tren noi dung chu khong chiem mot dai rieng o day man hinh:
+        // anh o duoi cung van tran qua sau the, chi can chua san cho o cuoi cac danh sach
+        // ([NAV_BAR_SPACE]) de muc cuoi khong bi the che mat.
         Box(modifier = Modifier.weight(1f)) {
             when {
                 uiState.isLoading -> Box(
@@ -184,16 +189,17 @@ private fun HomeContent(
                     }
                 }
             }
-        }
 
-        HomeNavigationBar(
-            selected = tab,
-            onSelect = { selected ->
-                // Doi tab thi bo bo loc dang mo, khong thi tab nao cung ra cung mot luoi.
-                onCategorySelected(null)
-                tab = selected
-            }
-        )
+            HomeNavigationBar(
+                selected = tab,
+                onSelect = { selected ->
+                    // Doi tab thi bo bo loc dang mo, khong thi tab nao cung ra cung mot luoi.
+                    onCategorySelected(null)
+                    tab = selected
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
@@ -221,8 +227,12 @@ private fun HomeTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        TextButton(onClick = onSettingsClick) {
-            Text(text = stringResource(R.string.action_settings))
+        IconButton(onClick = onSettingsClick) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings),
+                contentDescription = stringResource(R.string.action_settings),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -270,6 +280,8 @@ private fun DiscoverTab(
                 onPuzzleClick = onPuzzleClick
             )
         }
+
+        Spacer(modifier = Modifier.height(NAV_BAR_SPACE))
     }
 }
 
@@ -284,7 +296,10 @@ private fun DailyTab(uiState: HomeUiState, onPuzzleClick: (String) -> Unit) {
         return
     }
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .padding(bottom = NAV_BAR_SPACE),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -441,7 +456,12 @@ private fun PuzzleGrid(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + NAV_BAR_SPACE
+        ),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -527,12 +547,16 @@ private fun DailyPuzzleCard(
  * icon mau nhan kem ten muc, cac muc con lai chi con icon mo.
  */
 @Composable
-private fun HomeNavigationBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
+private fun HomeNavigationBar(
+    selected: HomeTab,
+    onSelect: (HomeTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
     Surface(
         shape = RoundedCornerShape(percent = 50),
         color = MaterialTheme.colorScheme.surface,
         shadowElevation = NAV_BAR_ELEVATION,
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = NAV_BAR_MARGIN, vertical = NAV_BAR_MARGIN)
             .height(NAV_BAR_HEIGHT)
@@ -629,6 +653,9 @@ private val NAV_BAR_MARGIN = 16.dp
 
 /** Chieu cao cua the dieu huong duoi, du cho icon cong ten muc cua muc dang chon. */
 private val NAV_BAR_HEIGHT = 72.dp
+
+/** Cho phai chua o cuoi noi dung de thanh dieu huong khong che mat muc cuoi cung. */
+private val NAV_BAR_SPACE = NAV_BAR_HEIGHT + NAV_BAR_MARGIN * 2
 
 /** Do noi cua the dieu huong duoi so voi nen. */
 private val NAV_BAR_ELEVATION = 10.dp

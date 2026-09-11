@@ -285,6 +285,29 @@ data class PuzzlePlayState(
     }
 
     /**
+     * Nhu [dragSnapOffset] nhung cho manh dang duoc keo thang tu khay ra: manh chua co toa
+     * do tren ban co nen cho dang nham toi ([position], toa do ban co cua goc tren-trai o)
+     * duoc dua vao thay cho vi tri hien tai.
+     *
+     * Nho vay manh vien hut vao o ngay giua duong keo tu khay len, khong doi nguoi choi tha
+     * xuong ban co roi kem theo mot luot keo thu hai.
+     */
+    fun trayDragSnapOffset(
+        pieceId: Int,
+        position: PieceOffset,
+        snapThreshold: Float = this.snapThreshold
+    ): PieceOffset? {
+        if (placements[pieceId]?.isInTray != true) return null
+        if (!isEdgePiece(pieceId)) return null
+        val piece = puzzle.pieces.firstOrNull { it.id == pieceId } ?: return null
+        val target = targetOf(piece)
+        val dx = target.x - position.x
+        val dy = target.y - position.y
+        if (hypot(dx, dy) > boardSnapThresholdOf(pieceId, snapThreshold)) return null
+        return PieceOffset(dx, dy)
+    }
+
+    /**
      * Manh vien vua vao dung o giua luc keo: dat no (va ca khoi) vao o roi khoa luon, nen
      * nguoi choi khong keo no di duoc nua. Tra ve null neu chua den luc hut (xem
      * [dragSnapOffset]).

@@ -10,6 +10,8 @@ interface SettingsRepository {
     suspend fun setThemeMode(mode: ThemeMode)
     suspend fun setSoundEnabled(enabled: Boolean)
     suspend fun setVibrationEnabled(enabled: Boolean)
+
+    suspend fun setMultiSelectEnabled(enabled: Boolean)
     suspend fun setLanguageCode(code: String)
     suspend fun setBoardBackground(background: BoardBackground)
 }

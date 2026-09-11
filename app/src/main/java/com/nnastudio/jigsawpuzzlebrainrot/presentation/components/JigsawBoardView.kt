@@ -1,9 +1,11 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.components
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
-import androidx.compose.foundation.gestures.awaitTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTransformGestures
 import androidx.compose.foundation.gestures.drag
 import androidx.compose.foundation.layout.Box
@@ -27,6 +29,7 @@ import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.layout.LayoutCoordinates
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.layout.positionInRoot
@@ -40,6 +43,25 @@ import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
 
 /** Goc bo tron cua khung ban co. */
 private val BOARD_CORNER = 12.dp
+
+/**
+ * Ngon tay phai di qua ngan nay thi moi tinh la keo manh (thay cho touch slop he thong, von
+ * lon gap may lan). Cang nho thi manh cang bat dinh ngon tay ngay, chi can du de mot cu cham
+ * nhe khong thanh nuoc di va de hai ngon tay kip bat dau zoom ban co.
+ */
+private val DRAG_SLOP = 2.dp
+
+/** Co cua manh luc bat dau nhip nay len sau khi duoc dua tu khay len ban. */
+private const val PIECE_POP_FROM = 0.4f
+
+/**
+ * Nhip nay cua manh vua duoc dua len ban: lo qua co that mot chut roi mai ve - manh nhu duoc
+ * tha xuong ban chu khong phai hien ra dung cho.
+ */
+private val PIECE_POP_SPEC = spring<Float>(
+    dampingRatio = Spring.DampingRatioMediumBouncy,
+    stiffness = Spring.StiffnessMediumLow
+)
 
 /** Do duc cua khung ban co: du de thay ranh gioi o ghep, van nhin xuyen ra mau nen. */
 private const val BOARD_ALPHA = 0.32f
@@ -117,6 +139,11 @@ fun JigsawBoardView(
      * tren nen cho cu tren ban co de trong va khong nhan cham.
      */
     flyingPieceIds: Set<Int>,
+    /**
+     * Cac manh vua duoc dua ca nhom tu khay len ban: chung hien ra kem mot nhip nay len de
+     * nguoi choi nhin ra ngay nhom manh moi giua nhung manh da nam san.
+     */
+    poppingPieceIds: Set<Int>,
     onBoardMeasured: (
         origin: Offset,
         sizePx: Float,
@@ -232,6 +259,16 @@ fun JigsawBoardView(
             val placement = playState.placements[piece.id] ?: return@forEach
             if (placement.isInTray) return@forEach
             val coordinates = remember(piece.id) { mutableStateOf<LayoutCoordinates?>(null) }
+            val popping = piece.id in poppingPieceIds
+            // Manh vua duoc dua tu khay len: bat dau tu co nho roi nay ve co that. Khoi tao
+            // san o co nho chu khong doi LaunchedEffect chay, khong thi manh loe dung co
+            // that mot frame truoc khi nhip nay bat dau.
+            val pop = remember(piece.id) {
+                Animatable(if (popping) PIECE_POP_FROM else 1f)
+            }
+            LaunchedEffect(piece.id, popping) {
+                if (popping) pop.animateTo(1f, PIECE_POP_SPEC) else pop.snapTo(1f)
+            }
             val group = playState.groupOf(piece.id)
             val isDraggingGroup = draggingGroup != null && group == draggingGroup
             JigsawPieceView(
@@ -258,21 +295,9 @@ fun JigsawBoardView(
                         x = boardLeft + boardSize * placement.position.x - margin,
                         y = boardTop + boardSize * placement.position.y - margin
                     )
-                    .graphicsLayer {
-                        // Ca khoi di theo ngon tay. Chi manh trong khoi doc dragOffset nen
-                        // manh khac khong bi ve lai.
-                        if (isDraggingGroup) {
-                            translationX = dragOffset.value.x
-                            translationY = dragOffset.value.y
-                        }
-                        // Chi phong to manh don le; phong to tung manh cua mot khoi se lam
-                        // cac manh trong khoi bi ho ra.
-                        val isLoneDragged = piece.id == draggingPieceId && draggingGroupSize == 1
-                        val scale = if (isLoneDragged) 1.06f else 1f
-                        scaleX = scale
-                        scaleY = scale
-                        if (piece.id in flyingPieceIds) alpha = 0f
-                    }
+                    // Gesture nam NGOAI lop graphicsLayer dang dich manh: toa do cua no vi
+                    // the dung yen trong suot luot keo. De ben trong lop thi moi frame doc
+                    // ra mot he toa do da bi dich, doan keo tinh ra lech nhip va manh rung.
                     .onGloballyPositioned { coordinates.value = it }
                     .then(
                         if (placement.isPlaced || piece.id in flyingPieceIds) {
@@ -281,24 +306,19 @@ fun JigsawBoardView(
                             Modifier.pointerInput(piece.id, boardSizePx) {
                                 awaitEachGesture {
                                     val down = awaitFirstDown(requireUnconsumed = false)
-                                    var overSlop = Offset.Zero
-                                    val dragged = awaitTouchSlopOrCancellation(down.id) { change, over ->
-                                        change.consume()
-                                        overSlop = over
-                                    } ?: return@awaitEachGesture
 
                                     fun rootOf(position: Offset) =
                                         coordinates.value?.localToRoot(position) ?: position
 
                                     // Luc an xuong manh chua dich nen toa do goc con dung.
                                     val startFinger = rootOf(down.position)
-                                    onPieceDragStart(piece.id)
                                     // Trong luc keo manh di tu do theo ngon tay, ke ca xuong
                                     // khay - co chan lai o day thi manh dung o mep khay va
                                     // nguoi choi tuong khong tra ve khay duoc. Luc tha moi
                                     // gioi han vao vung choi (movePiece tu cat bot).
-                                    // Doan vuot qua touch slop cung phai tinh, khong thi manh bi tre.
-                                    var total = overSlop
+                                    // Doan di truoc khi nhan ra la keo cung duoc tinh vao,
+                                    // khong thi manh bi tre lai sau ngon tay.
+                                    var total = Offset.Zero
                                     // Manh vien da hut vao o: luot keo ket thuc tai day,
                                     // khong bao drag-end them mot lan nua.
                                     var snapped = false
@@ -323,24 +343,43 @@ fun JigsawBoardView(
                                         onPieceDragSnap(piece.id, dx, dy)
                                         return true
                                     }
+                                    // Nguong bat dau keo rieng cua ban co, nho hon touch slop
+                                    // he thong nhieu lan: manh dinh ngon tay gan nhu tuc thi
+                                    // chu khong tro ra sau mot doan. Van con nguong de cham
+                                    // nhe khong thanh mot nuoc di, va de nhip dau con lot cho
+                                    // hai ngon tay bat dau zoom ban co.
+                                    val slopPx = DRAG_SLOP.toPx()
+                                    while (true) {
+                                        val event = awaitPointerEvent()
+                                        val change = event.changes.firstOrNull { it.id == down.id }
+                                            ?: return@awaitEachGesture
+                                        // Zoom hai ngon tay da lay su kien nay, hoac ngon tay
+                                        // da nhac len: khong phai luot keo manh.
+                                        if (change.isConsumed || !change.pressed) {
+                                            return@awaitEachGesture
+                                        }
+                                        total += change.positionChange()
+                                        if (total.getDistance() > slopPx) {
+                                            // Nhan luot keo ve minh: tu day zoom khong lay nua.
+                                            change.consume()
+                                            break
+                                        }
+                                    }
+
+                                    onPieceDragStart(piece.id)
                                     if (applyDrag()) return@awaitEachGesture
-                                    // Ngon tay phai do theo toa do goc: manh di theo ngon tay nen
-                                    // toa do cuc bo cua no gan nhu khong doi, positionChange() se
-                                    // ra xap xi 0 va manh dung yen.
-                                    var local = rootOf(dragged.position)
-                                    drag(dragged.id) { change ->
+                                    drag(down.id) { change ->
+                                        // Doc doan dich truoc khi consume: consume roi thi
+                                        // positionChange() tra ve 0.
+                                        val moved = change.positionChange()
                                         change.consume()
                                         if (snapped) return@drag
-                                        val current = rootOf(change.position)
-                                        total += current - local
-                                        local = current
+                                        total += moved
                                         applyDrag()
                                     }
                                     if (snapped) return@awaitEachGesture
-                                    // Diem ngon tay phai suy ra tu diem an xuong: localToRoot
-                                    // khong tinh phan graphicsLayer da dich nen toa do doc trong
-                                    // luc keo bi lech dung bang doan da keo (hieu hai lan doc
-                                    // thi khong bi lech nen van dung de tinh total).
+                                    // Node nhan gesture dung yen nen diem ngon tay = diem an
+                                    // xuong cong ca doan da keo.
                                     val finger = startFinger + total
                                     onPieceDragEnd(
                                         piece.id,
@@ -352,6 +391,23 @@ fun JigsawBoardView(
                             }
                         }
                     )
+                    .graphicsLayer {
+                        // Ca khoi di theo ngon tay. Chi manh trong khoi doc dragOffset nen
+                        // manh khac khong bi ve lai.
+                        if (isDraggingGroup) {
+                            translationX = dragOffset.value.x
+                            translationY = dragOffset.value.y
+                        }
+                        // Chi phong to manh don le; phong to tung manh cua mot khoi se lam
+                        // cac manh trong khoi bi ho ra.
+                        val isLoneDragged = piece.id == draggingPieceId && draggingGroupSize == 1
+                        // Doc pop.value trong lambda nay: doc o pha composition thi moi frame
+                        // cua nhip nay se ve lai ca ban co.
+                        val scale = (if (isLoneDragged) 1.06f else 1f) * pop.value
+                        scaleX = scale
+                        scaleY = scale
+                        if (piece.id in flyingPieceIds) alpha = 0f
+                    }
             )
         }
     }

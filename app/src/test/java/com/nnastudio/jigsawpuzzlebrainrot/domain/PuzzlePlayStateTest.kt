@@ -371,6 +371,66 @@ class PuzzlePlayStateTest {
     }
 
     @Test
+    fun `should pull an edge piece into its slot while it is dragged out of the tray`() {
+        val state = newTrayState()
+        val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
+        val target = state.targetOf(piece)
+
+        val snap = state.trayDragSnapOffset(
+            piece.id,
+            PieceOffset(target.x + 0.02f, target.y - 0.02f)
+        )
+
+        assertEquals(-0.02f, snap!!.x, TOLERANCE)
+        assertEquals(0.02f, snap.y, TOLERANCE)
+        // Dat manh vao dung cho vua hut = manh khoa luon, nhu khi tha tren ban co.
+        val placement = state
+            .releaseFromTray(piece.id, PieceOffset(target.x + 0.02f, target.y - 0.02f) + snap)
+            .placements
+            .getValue(piece.id)
+        assertTrue(placement.isPlaced)
+        assertEquals(target.x, placement.position.x, TOLERANCE)
+        assertEquals(target.y, placement.position.y, TOLERANCE)
+    }
+
+    @Test
+    fun `should pull a corner piece out of the tray from farther than an edge piece`() {
+        val state = newTrayState()
+        val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
+        val edge = puzzle.pieces.first { it.row == 0 && it.col == 1 }
+        // Luoi 3x3: nguong thuong la 0.06, nguong cua manh goc la 0.083.
+        val gap = 0.07f
+
+        val edgeSpot = state.targetOf(edge).let { PieceOffset(it.x + gap, it.y) }
+        val cornerSpot = state.targetOf(corner).let { PieceOffset(it.x + gap, it.y) }
+
+        assertNull(state.trayDragSnapOffset(edge.id, edgeSpot))
+        assertEquals(-gap, state.trayDragSnapOffset(corner.id, cornerSpot)!!.x, TOLERANCE)
+    }
+
+    @Test
+    fun `should not pull an inner piece while it is dragged out of the tray`() {
+        val state = newTrayState()
+        val piece = puzzle.pieces.first { it.row == 1 && it.col == 1 }
+        val target = state.targetOf(piece)
+
+        assertNull(
+            state.trayDragSnapOffset(piece.id, PieceOffset(target.x + 0.02f, target.y - 0.02f))
+        )
+    }
+
+    @Test
+    fun `should not pull an edge piece out of the tray while it is far from its slot`() {
+        val state = newTrayState()
+        val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
+        val target = state.targetOf(piece)
+
+        assertNull(
+            state.trayDragSnapOffset(piece.id, PieceOffset(target.x + 0.4f, target.y + 0.4f))
+        )
+    }
+
+    @Test
     fun `should pull a corner piece into its slot from farther than an edge piece`() {
         val state = newBoardState()
         val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }

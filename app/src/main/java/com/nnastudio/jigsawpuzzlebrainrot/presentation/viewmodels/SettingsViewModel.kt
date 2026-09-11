@@ -5,6 +5,7 @@ import androidx.lifecycle.viewModelScope
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ThemeMode
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveSettingsUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.SetThemeModeUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ToggleMultiSelectUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ToggleSoundUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ToggleVibrationUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -20,7 +21,8 @@ class SettingsViewModel @Inject constructor(
     observeSettings: ObserveSettingsUseCase,
     private val setThemeMode: SetThemeModeUseCase,
     private val toggleSound: ToggleSoundUseCase,
-    private val toggleVibration: ToggleVibrationUseCase
+    private val toggleVibration: ToggleVibrationUseCase,
+    private val toggleMultiSelect: ToggleMultiSelectUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(SettingsUiState())
@@ -46,5 +48,9 @@ class SettingsViewModel @Inject constructor(
 
     fun onVibrationChanged(enabled: Boolean) {
         viewModelScope.launch { toggleVibration(enabled) }
+    }
+
+    fun onMultiSelectChanged(enabled: Boolean) {
+        viewModelScope.launch { toggleMultiSelect(enabled) }
     }
 }

@@ -54,6 +54,10 @@
     <string name="background_night">Xanh đêm</string>
     <string name="background_purple">Tím</string>
     <string name="action_clean_pieces">Dọn mảnh rời về khay</string>
+    <string name="action_release_selected">Đưa %1$d mảnh lên bàn</string>
+    <string name="action_release_none">Chọn mảnh để đưa lên bàn</string>
+    <string name="action_expand_tray">Mở rộng khay mảnh</string>
+    <string name="action_collapse_tray">Thu gọn khay mảnh</string>
     <string name="action_show_image">Hiện ảnh mẫu</string>
     <string name="action_hide_image">Tắt ảnh mẫu</string>
     <string name="action_close_image">Đóng ảnh mẫu</string>
@@ -63,6 +67,8 @@
     <string name="settings_dark_mode">Chế độ tối</string>
     <string name="settings_sound">Âm thanh</string>
     <string name="settings_vibration">Rung</string>
+    <string name="settings_multi_select">Chọn nhiều mảnh</string>
+    <string name="settings_multi_select_hint">Chạm để chọn nhiều mảnh trong khay rồi đưa cả nhóm lên bàn chơi một lượt</string>
 
     <!-- Errors -->
     <string name="error_load_puzzles">Không tải được danh sách hình</string>
