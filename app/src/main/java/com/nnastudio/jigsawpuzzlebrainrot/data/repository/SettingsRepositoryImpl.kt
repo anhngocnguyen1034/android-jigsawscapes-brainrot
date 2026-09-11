@@ -30,6 +30,10 @@ class SettingsRepositoryImpl @Inject constructor(
         runCatching { settingsDataSource.setVibrationEnabled(enabled) }
     }
 
+    override suspend fun setMultiSelectEnabled(enabled: Boolean) {
+        runCatching { settingsDataSource.setMultiSelectEnabled(enabled) }
+    }
+
     override suspend fun setLanguageCode(code: String) {
         runCatching { settingsDataSource.setLanguageCode(code) }
     }

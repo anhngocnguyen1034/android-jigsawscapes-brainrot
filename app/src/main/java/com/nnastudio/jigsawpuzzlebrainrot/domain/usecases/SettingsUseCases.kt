@@ -31,6 +31,13 @@ class ToggleVibrationUseCase @Inject constructor(
     suspend operator fun invoke(enabled: Boolean) = settingsRepository.setVibrationEnabled(enabled)
 }
 
+class ToggleMultiSelectUseCase @Inject constructor(
+    private val settingsRepository: SettingsRepository
+) {
+    suspend operator fun invoke(enabled: Boolean) =
+        settingsRepository.setMultiSelectEnabled(enabled)
+}
+
 class SetBoardBackgroundUseCase @Inject constructor(
     private val settingsRepository: SettingsRepository
 ) {

@@ -34,6 +34,26 @@ data class GameUiState(
     val edgePiecesOnly: Boolean = false,
     /** Nen ban choi dang dung, nguoi choi doi duoc ngay trong van. */
     val boardBackground: BoardBackground = BoardBackground.DEFAULT,
+    /** Ba cong tac tu man cai dat, doc theo thoi gian thuc. */
+    val soundEnabled: Boolean = true,
+    val vibrationEnabled: Boolean = true,
+    val multiSelectEnabled: Boolean = false,
+    /**
+     * Khay dang mo thanh hop luoi cuon doc. Trong hop luon cham chon duoc manh, ke ca khi
+     * [multiSelectEnabled] dang tat.
+     */
+    val trayExpanded: Boolean = false,
+    /**
+     * Cac manh dang duoc cham chon trong khay (chi khi [multiSelectEnabled]). Chon xong thi
+     * bam nut dua ca nhom len ban choi - xem GameViewModel.onSelectedPiecesReleased.
+     */
+    val selectedTrayPieceIds: Set<Int> = emptySet(),
+    /**
+     * Cac manh vua duoc dua tu khay len ban choi ca nhom: chung nay len mot nhip khi hien ra
+     * de nguoi choi nhin ra ngay nhom manh moi giua nhung manh da nam san. Danh sach tu rong
+     * lai sau khi nhip nay chay xong - xem GameViewModel.onSelectedPiecesReleased.
+     */
+    val droppedPieceIds: Set<Int> = emptySet(),
     val isSolved: Boolean = false,
     val errorMessageRes: Int? = null
 ) {
@@ -47,6 +67,9 @@ data class GameUiState(
     val canUseHint: Boolean
         get() = playState != null && hintsLeft > 0 && !isSolved &&
             hintPieceIds.isEmpty() && cleaningPieceIds.isEmpty()
+
+    /** Dang cham chon do: thanh cong cu nhuong cho nut dua manh len ban choi. */
+    val hasTraySelection: Boolean get() = selectedTrayPieceIds.isNotEmpty()
 
     /** Chi don duoc khi con manh roi le va khong co manh nao dang bay. */
     val canClean: Boolean

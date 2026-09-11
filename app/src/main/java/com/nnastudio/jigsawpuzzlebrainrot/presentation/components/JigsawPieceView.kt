@@ -171,9 +171,9 @@ private const val BEVEL_LAYERS = 2
 internal const val BEVEL_LAYERS_BAKED = 5
 
 // Đã loại bỏ RIM_ALPHA vì nó làm bẩn màu của viền bắt sáng (Highlight).
-private const val HIGHLIGHT_ALPHA = 0.55f
+private const val HIGHLIGHT_ALPHA = 0.9f
 private const val EDGE_SHADOW_ALPHA = 0.5f
-private const val BEVEL_WIDTH_RATIO = 1.6f
+private const val BEVEL_WIDTH_RATIO = 2f
 
 /** Khe toi sat giua hai manh. */
 private const val CUT_ALPHA = 0.42f

@@ -1,5 +1,8 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.game
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -7,12 +10,15 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.border
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
@@ -20,13 +26,16 @@ import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -38,6 +47,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -49,6 +60,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.graphicsLayer
@@ -75,6 +87,8 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawBoardView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawPieceView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTrayView
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TRAY_COLLAPSED_HEIGHT
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.rememberGameFeedback
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TAB_RATIO
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.trayBoardSizePx
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
@@ -92,6 +106,22 @@ fun GameScreen(
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
+    // Rung / tieng bam theo so manh da vao o thay vi bam vao tung cho goi ViewModel: manh
+    // vao o duoc bang nhieu duong - keo tay, tha tu khay, goi y, va ca ghep khoi lam nhieu
+    // manh vao mot luc - nhung duong nao roi cung lam so nay tang.
+    val feedback = rememberGameFeedback(
+        soundEnabled = uiState.soundEnabled,
+        vibrationEnabled = uiState.vibrationEnabled
+    )
+    var lastPlacedCount by remember { mutableIntStateOf(uiState.placedCount) }
+    LaunchedEffect(uiState.placedCount) {
+        if (uiState.placedCount > lastPlacedCount) feedback.onPiecePlaced()
+        lastPlacedCount = uiState.placedCount
+    }
+    LaunchedEffect(uiState.isSolved) {
+        if (uiState.isSolved) feedback.onSolved()
+    }
+
     GameContent(
         uiState = uiState,
         onPieceDragStart = viewModel::onPieceDragStart,
@@ -104,6 +134,9 @@ fun GameScreen(
         onHintRequested = viewModel::onHintRequested,
         onHintPieceLanded = viewModel::onHintPieceLanded,
         onCleanRequested = viewModel::onCleanRequested,
+        onTrayPieceTapped = viewModel::onTrayPieceTapped,
+        onSelectedPiecesReleased = viewModel::onSelectedPiecesReleased,
+        onTrayExpandedChange = viewModel::onTrayExpandedChange,
         onCleanPieceLanded = viewModel::onCleanPieceLanded,
         onTogglePause = viewModel::onTogglePause,
         onBackgroundSelected = viewModel::onBoardBackgroundSelected,
@@ -128,6 +161,9 @@ private fun GameContent(
     onHintRequested: () -> Unit,
     onHintPieceLanded: (Int) -> Unit,
     onCleanRequested: () -> Unit,
+    onTrayPieceTapped: (Int) -> Unit,
+    onSelectedPiecesReleased: () -> Unit,
+    onTrayExpandedChange: (Boolean) -> Unit,
     onCleanPieceLanded: (Int) -> Unit,
     onTogglePause: () -> Unit,
     onBackgroundSelected: (BoardBackground) -> Unit,
@@ -152,14 +188,13 @@ private fun GameContent(
             // cho nav bar thi khay dung luon: nav cung dang an.
             .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
     ) {
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(horizontal = 12.dp)
-        ) {
+        // Le hai ben nam o tung phan chu khong o ca cot: khay manh phai cham duoc hai mep
+        // man hinh, dat le o cot thi no bi thut vao theo.
+        Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
+                    .padding(horizontal = SCREEN_PADDING)
                     // Thanh cong cu chi con icon tran: mot lop nen mo de icon khong lan vao
                     // manh ghep phia sau, van du trong de thay mau nen ban choi.
                     .background(
@@ -238,7 +273,7 @@ private fun GameContent(
                 BackgroundPicker(
                     selected = uiState.boardBackground,
                     onSelected = onBackgroundSelected,
-                    modifier = Modifier.padding(top = 4.dp)
+                    modifier = Modifier.padding(top = 4.dp, start = SCREEN_PADDING, end = SCREEN_PADDING)
                 )
             }
 
@@ -270,7 +305,10 @@ private fun GameContent(
                         } else {
                             MaterialTheme.colorScheme.onSurface
                         },
-                        modifier = Modifier.padding(vertical = 4.dp)
+                        modifier = Modifier.padding(
+                            vertical = 4.dp,
+                            horizontal = SCREEN_PADDING
+                        )
                     )
 
                     PlayArea(
@@ -282,6 +320,7 @@ private fun GameContent(
                         onHintPieceLanded = onHintPieceLanded,
                         cleaningPieceIds = uiState.cleaningPieceIds,
                         onCleanPieceLanded = onCleanPieceLanded,
+                        droppedPieceIds = uiState.droppedPieceIds,
                         onPieceDragStart = onPieceDragStart,
                         onPieceDragEnd = onPieceDragEnd,
                         onPieceDragSnap = onPieceDragSnap,
@@ -291,6 +330,11 @@ private fun GameContent(
                         onPlayAreaMeasured = onPlayAreaMeasured,
                         onBoardSizeMeasured = { boardSizePx = it },
                         edgePiecesOnly = uiState.edgePiecesOnly,
+                        selectedTrayPieceIds = uiState.selectedTrayPieceIds,
+                        onTrayPieceTapped = onTrayPieceTapped,
+                        onSelectedPiecesReleased = onSelectedPiecesReleased,
+                        trayExpanded = uiState.trayExpanded,
+                        onTrayExpandedChange = onTrayExpandedChange,
                         modifier = Modifier.weight(1f)
                     )
                 }
@@ -307,6 +351,18 @@ private fun GameContent(
         }
     }
 }
+
+/**
+ * Le hai ben cua thanh cong cu, bang chon nen va dong tien do. Khay manh khong dung le nay:
+ * no tran het be ngang man hinh.
+ */
+private val SCREEN_PADDING = 12.dp
+
+/** Do toi cua lop phu sau hop manh: du de hop noi len, van con thay ban co mo mo. */
+private const val TRAY_SCRIM_ALPHA = 0.5f
+
+/** Lop phu mo / tan dan trong bao lau (ms): dat bang nhip truot cua hop manh. */
+private const val TRAY_SCRIM_DURATION = 260
 
 /** Do duc cua lop nen thanh cong cu: du de doc icon, van nhin xuyen thay mau nen ban choi. */
 private const val TOP_BAR_ALPHA = 0.32f
@@ -458,6 +514,8 @@ private fun PlayArea(
     onHintPieceLanded: (Int) -> Unit,
     cleaningPieceIds: List<Int>,
     onCleanPieceLanded: (Int) -> Unit,
+    /** Cac manh vua duoc dua ca nhom tu khay len ban: chung hien ra kem mot nhip nay len. */
+    droppedPieceIds: Set<Int>,
     onPieceDragStart: (Int) -> Unit,
     onPieceDragEnd: (Int, Float, Float) -> Unit,
     onPieceDragSnap: (Int, Float, Float) -> Unit,
@@ -468,6 +526,17 @@ private fun PlayArea(
     onBoardSizeMeasured: (Float) -> Unit,
     /** Chi hien manh cua 4 canh trong khay. */
     edgePiecesOnly: Boolean,
+    /** Cac manh dang cham chon trong khay, rong neu dang tat che do chon nhieu. */
+    selectedTrayPieceIds: Set<Int>,
+    /**
+     * Cham vao manh trong khay. Trong hop manh luc nao cung cham chon duoc, con o hang khay
+     * thu gon thi ViewModel bo qua neu nguoi choi dang tat che do chon nhieu.
+     */
+    onTrayPieceTapped: (Int) -> Unit,
+    onSelectedPiecesReleased: () -> Unit,
+    /** Khay dang mo thanh hop luoi cuon doc. */
+    trayExpanded: Boolean,
+    onTrayExpandedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -479,14 +548,21 @@ private fun PlayArea(
     // Canh ban co luc chua zoom: co manh trong khay do theo day nen zoom ban co khong lam
     // khay phong to theo.
     var baseBoardSizePx by remember { mutableFloatStateOf(0f) }
-    // null = chua do xong khay, chua biet dau la ranh gioi khay.
+    // null = chua do xong khay, chua biet dau la ranh gioi khay. Day la ca cum khay (tinh ca
+    // nut mui ten), dung de biet ngon tay dang o ban co hay da xuong khay.
     var trayOrigin by remember { mutableStateOf<Offset?>(null) }
-    var traySize by remember { mutableStateOf(IntSize.Zero) }
+    // Rieng vung danh sach manh: cho cua tung manh do theo goc nay.
+    var trayListOrigin by remember { mutableStateOf(Offset.Zero) }
+    var trayListSize by remember { mutableStateOf(IntSize.Zero) }
     // Toa do ngon tay khi keo manh tu khay chi duoc doc trong lambda cua offset (pha layout):
     // doc no o pha composition thi moi frame keo se ve lai ca ban co lan khay.
     var trayDragPieceId by remember { mutableStateOf<Int?>(null) }
     val trayDragPosition = remember { mutableStateOf(Offset.Zero) }
+    // Gesture cua khay giu nguyen lambda tu luc bat dau keo, nen van choi phai doc qua day
+    // moi la van hien tai (xem onDragMove ben duoi).
+    val latestPlayState = rememberUpdatedState(playState)
     val trayListState = rememberLazyListState()
+    val trayGridState = rememberLazyGridState()
     // Manh dang bay (goi y hoac dang duoc don ve khay): ban co de trong cho cua no, lop noi
     // ben tren ve no.
     val flyingPieceIds = remember(hintPieceId, cleaningPieceIds) {
@@ -514,12 +590,23 @@ private fun PlayArea(
     }
 
     /** Cho chen trong danh sach dang hien ung voi diem tha: truoc hay sau manh dang o do. */
-    fun trayIndexAt(x: Float): Int {
-        val localX = x - (trayOrigin?.x ?: 0f)
+    fun trayIndexAt(position: Offset): Int {
+        val local = position - trayListOrigin
+        if (trayExpanded) {
+            // Hop mo rong xep theo cot nen khong chi nhin toa do ngang duoc: lay manh co tam
+            // gan diem tha nhat roi xem diem tha nam truoc hay sau tam no.
+            val visible = trayGridState.layoutInfo.visibleItemsInfo
+            val item = visible.minByOrNull { info ->
+                val cx = info.offset.x + info.size.width / 2f
+                val cy = info.offset.y + info.size.height / 2f
+                (local.x - cx) * (local.x - cx) + (local.y - cy) * (local.y - cy)
+            } ?: return 0
+            return item.index + if (local.x > item.offset.x + item.size.width / 2f) 1 else 0
+        }
         val visible = trayListState.layoutInfo.visibleItemsInfo
-        val item = visible.firstOrNull { localX < it.offset + it.size }
+        val item = visible.firstOrNull { local.x < it.offset + it.size }
             ?: return visible.lastOrNull()?.let { it.index + 1 } ?: 0
-        return item.index + if (localX > item.offset + item.size / 2f) 1 else 0
+        return item.index + if (local.x > item.offset + item.size / 2f) 1 else 0
     }
 
     Box(modifier = modifier.onGloballyPositioned { areaOrigin = it.positionInRoot() }) {
@@ -530,6 +617,7 @@ private fun PlayArea(
                 draggingPieceId = draggingPieceId,
                 lastMovedPieceId = lastMovedPieceId,
                 flyingPieceIds = flyingPieceIds,
+                poppingPieceIds = droppedPieceIds,
                 onBoardMeasured = { origin, sizePx, baseSizePx, bounds ->
                     boardOrigin = origin
                     boardSizePx = sizePx
@@ -543,7 +631,7 @@ private fun PlayArea(
                     // Tha ngon tay xuong khay = tra manh ve danh sach, dung cho vua tha.
                     val overTray = trayOrigin?.let { finger.y >= it.y } == true
                     if (overTray && playState.canReturnToTray(pieceId)) {
-                        onPieceReturnedToTray(pieceId, trayOrderIndexOf(trayIndexAt(finger.x)))
+                        onPieceReturnedToTray(pieceId, trayOrderIndexOf(trayIndexAt(finger)))
                     } else {
                         onPieceDragEnd(pieceId, dx, dy)
                     }
@@ -553,6 +641,43 @@ private fun PlayArea(
                     .zIndex(if (draggingPieceId != null) 1f else 0f)
             )
 
+            // Khay chi giu cho san o day; no duoc ve o lop noi ben tren de khi mo rong thi
+            // de len ban co chu khong day ban co nho lai.
+            Spacer(modifier = Modifier.height(TRAY_COLLAPSED_HEIGHT + 12.dp))
+        }
+
+        // Hop manh dang mo: lam toi ca man hinh cho nguoi choi nhin vao hop, cham ra ngoai
+        // hop la dong hop lai. Lop phu mo / tan dan cung nhip voi hop truot len xuong.
+        AnimatedVisibility(
+            visible = trayExpanded,
+            enter = fadeIn(tween(TRAY_SCRIM_DURATION)),
+            exit = fadeOut(tween(TRAY_SCRIM_DURATION)),
+            modifier = Modifier.zIndex(1f)
+        ) {
+            // Lop phu khong dung o mep tren cua vung choi ma dang len het ca thanh cong cu:
+            // mo hop manh la ca man hinh toi lai, dung kieu mot bottom sheet that. Vung choi
+            // duoc ve sau thanh cong cu trong cung mot cot nen no phu duoc len tren.
+            val areaTop = with(LocalDensity.current) { areaOrigin.y.toDp() }
+            Box(
+                modifier = Modifier
+                    .offset(y = -areaTop)
+                    .fillMaxWidth()
+                    .height(LocalConfiguration.current.screenHeightDp.dp + areaTop)
+                    .background(Color.Black.copy(alpha = TRAY_SCRIM_ALPHA))
+                    .clickable(
+                        interactionSource = remember { MutableInteractionSource() },
+                        indication = null
+                    ) { onTrayExpandedChange(false) }
+            )
+        }
+
+        // Lop khay: neo duoi day man hinh va nam tren ban co, nen khay mo rong de len ban
+        // co kieu bottom sheet chu khong lam ban co doi kich thuoc.
+        Column(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(2f)
+        ) {
             // Khay luon hien, ke ca khi trong: no la cho de tha manh tu ban co ve.
             JigsawTrayView(
                 playState = playState,
@@ -561,12 +686,38 @@ private fun PlayArea(
                 draggedPieceId = trayDragPieceId,
                 hintPieceId = hintPieceId,
                 listState = trayListState,
+                gridState = trayGridState,
                 boardSizePx = baseBoardSizePx,
+                expanded = trayExpanded,
+                onExpandedChange = onTrayExpandedChange,
+                onListMeasured = { origin, size ->
+                    trayListOrigin = origin
+                    trayListSize = size
+                },
+                selectedPieceIds = selectedTrayPieceIds,
+                onPieceTapped = onTrayPieceTapped,
                 onDragStart = { pieceId, position ->
                     trayDragPosition.value = position
                     trayDragPieceId = pieceId
                 },
-                onDragMove = { position -> trayDragPosition.value = position },
+                onDragMove = { position ->
+                    trayDragPosition.value = position
+                    // Manh vien keo tu khay len dung o cua no thi vao cho ngay giua duong,
+                    // khong doi nhac tay - giong het khi keo manh dang nam tren ban co.
+                    val pieceId = trayDragPieceId
+                    val overBoard = position.y < (trayOrigin?.y ?: Float.MAX_VALUE)
+                    if (pieceId != null && boardSizePx > 0f && overBoard) {
+                        val boardPosition = boardPositionOf(position)
+                        val snap = latestPlayState.value
+                            .trayDragSnapOffset(pieceId, boardPosition)
+                        if (snap != null) {
+                            // Luot keo ket thuc tai day: onDragEnd sau do thay khong con
+                            // manh nao dang keo nen khong dat them mot lan nua.
+                            trayDragPieceId = null
+                            onTrayPieceDropped(pieceId, boardPosition + snap)
+                        }
+                    }
+                },
                 onDragEnd = { position ->
                     val pieceId = trayDragPieceId
                     trayDragPieceId = null
@@ -575,97 +726,123 @@ private fun PlayArea(
                         onTrayPieceDropped(pieceId, boardPositionOf(position))
                     } else if (pieceId != null) {
                         // Tha lai trong khay = doi cho: manh ve dung cho vua tha.
-                        onTrayPieceMoved(pieceId, trayOrderIndexOf(trayIndexAt(position.x)))
+                        onTrayPieceMoved(pieceId, trayOrderIndexOf(trayIndexAt(position)))
                     }
                 },
                 modifier = Modifier
-                    .padding(top = 8.dp, bottom = 4.dp)
-                    .onGloballyPositioned {
-                        trayOrigin = it.positionInRoot()
-                        traySize = it.size
+                    // Khay cham han day man hinh va hai mep hai ben: thu gon hay mo hop thi
+                    // no van la mot tam lien mach voi canh man hinh.
+                    .padding(top = 8.dp)
+                    .onGloballyPositioned { trayOrigin = it.positionInRoot() },
+                // Nut dua ca nhom len ban choi: hop dang mo thi nut luon hien (con mo thi
+                // con dang chon manh), hop dong roi thi chi hien khi da cham chon manh nao
+                // do. Nut nam duoi khay cho ngon tay khong phai di xa manh vua cham.
+                footer = {
+                    if (trayExpanded || selectedTrayPieceIds.isNotEmpty()) {
+                        Button(
+                            onClick = onSelectedPiecesReleased,
+                            enabled = selectedTrayPieceIds.isNotEmpty(),
+                            modifier = Modifier
+                                .align(Alignment.CenterHorizontally)
+                                .padding(top = 4.dp, bottom = 12.dp)
+                        ) {
+                            Text(
+                                text = if (selectedTrayPieceIds.isEmpty()) {
+                                    stringResource(R.string.action_release_none)
+                                } else {
+                                    stringResource(
+                                        R.string.action_release_selected,
+                                        selectedTrayPieceIds.size
+                                    )
+                                }
+                            )
+                        }
                     }
+                }
             )
         }
 
-        val trayTop = trayOrigin
-        if (trayTop != null && boardSizePx > 0f) {
-            val density = LocalDensity.current
-            val boardSize = with(density) { boardSizePx.toDp() }
-            val slotWidth = boardSize / cols
-            val slotHeight = boardSize / rows
-            val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
-            val marginPx = with(density) { margin.toPx() }
-            val frameWidth = with(density) { (slotWidth + margin * 2).toPx() }
-            val frameHeight = with(density) { (slotHeight + margin * 2).toPx() }
-            // Manh trong khay ve nho hon manh tren ban co, nen manh bay giua hai noi vua bay
-            // vua doi kich thuoc.
-            // Manh trong khay do theo canh ban co chua zoom, con manh bay do theo canh dang
-            // hien thi, nen ti le nay phai lay ca hai.
-            val trayScale = trayBoardSizePx(baseBoardSizePx, rows, cols) / boardSizePx
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                // Manh dang bay / dang keo phai o tren cung: khay mo rong khong duoc che no.
+                .zIndex(3f)
+        ) {
+            val trayTop = trayOrigin
+            if (trayTop != null && boardSizePx > 0f) {
+                val density = LocalDensity.current
+                val boardSize = with(density) { boardSizePx.toDp() }
+                val slotWidth = boardSize / cols
+                val slotHeight = boardSize / rows
+                val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
+                val marginPx = with(density) { margin.toPx() }
+                val frameWidth = with(density) { (slotWidth + margin * 2).toPx() }
+                val frameHeight = with(density) { (slotHeight + margin * 2).toPx() }
+                // Manh trong khay ve nho hon manh tren ban co, nen manh bay giua hai noi vua bay
+                // vua doi kich thuoc.
+                // Manh trong khay do theo canh ban co chua zoom, con manh bay do theo canh dang
+                // hien thi, nen ti le nay phai lay ca hai.
+                val trayScale = trayBoardSizePx(baseBoardSizePx, rows, cols) / boardSizePx
 
-            /** Goc tren-trai cua khung manh khi manh nam o [position] tren ban co. */
-            fun boardFrameOf(position: PieceOffset) = Offset(
-                x = boardOrigin.x - areaOrigin.x + position.x * boardSizePx - marginPx,
-                y = boardOrigin.y - areaOrigin.y + position.y * boardSizePx - marginPx
-            )
-
-            /** Goc tren-trai cua khung manh khi manh nam o [left] trong khay. */
-            fun trayFrameAt(left: Float) = Offset(
-                x = trayTop.x - areaOrigin.x + left,
-                y = trayTop.y - areaOrigin.y + (traySize.height - frameHeight * trayScale) / 2f
-            )
-
-            /** Cho cua manh trong khay; manh da cuon ra ngoai thi lay giua khay. */
-            fun traySlotOf(pieceId: Int): Offset {
-                val slot = trayListState.layoutInfo.visibleItemsInfo
-                    .firstOrNull { it.key == pieceId }
-                return trayFrameAt(
-                    slot?.offset?.toFloat() ?: ((traySize.width - frameWidth * trayScale) / 2f)
+                /** Goc tren-trai cua khung manh khi manh nam o [position] tren ban co. */
+                fun boardFrameOf(position: PieceOffset) = Offset(
+                    x = boardOrigin.x - areaOrigin.x + position.x * boardSizePx - marginPx,
+                    y = boardOrigin.y - areaOrigin.y + position.y * boardSizePx - marginPx
                 )
-            }
 
-            /**
-             * Cuoi khay - dich cua manh duoc don ve. Khay dai hon man hinh thi cuoi khay nam
-             * ngoai vung thay duoc, luc do manh bay den mep phai khay roi bien vao danh sach.
-             */
-            val trayEnd = run {
-                val last = trayListState.layoutInfo.visibleItemsInfo.lastOrNull()
-                val left = last?.let { (it.offset + it.size).toFloat() } ?: 0f
-                trayFrameAt(left.coerceAtMost(traySize.width - frameWidth * trayScale))
-            }
+                /**
+                 * Goc tren-trai cua khung manh khi manh nam o [left] / [top] trong vung danh
+                 * sach cua khay. [top] de trong = dat giua chieu cao khay (khay mot hang).
+                 */
+                fun trayFrameAt(left: Float, top: Float? = null) = Offset(
+                    x = trayListOrigin.x - areaOrigin.x + left,
+                    y = trayListOrigin.y - areaOrigin.y +
+                        (top ?: ((trayListSize.height - frameHeight * trayScale) / 2f))
+                )
 
-            hintPieceId?.let { flyingId ->
-                val piece = playState.puzzle.pieces.firstOrNull { it.id == flyingId }
-                if (piece != null) {
-                    val inTray = playState.isInTray(flyingId)
-                    FlyingPiece(
-                        piece = piece,
-                        image = image,
-                        rows = rows,
-                        cols = cols,
-                        boardSizePx = boardSizePx,
-                        slotWidth = slotWidth,
-                        slotHeight = slotHeight,
-                        margin = margin,
-                        start = if (inTray) {
-                            traySlotOf(flyingId)
-                        } else {
-                            boardFrameOf(playState.placements.getValue(flyingId).position)
-                        },
-                        startScale = if (inTray) trayScale else 1f,
-                        end = boardFrameOf(playState.targetOf(piece)),
-                        endScale = 1f,
-                        onLanded = { onHintPieceLanded(flyingId) }
-                    )
+                /** Cho cua manh trong khay; manh da cuon ra ngoai thi lay giua khay. */
+                fun traySlotOf(pieceId: Int): Offset {
+                    val middle = (trayListSize.width - frameWidth * trayScale) / 2f
+                    if (trayExpanded) {
+                        val slot = trayGridState.layoutInfo.visibleItemsInfo
+                            .firstOrNull { it.key == pieceId } ?: return trayFrameAt(middle)
+                        // O trong hop rong hon khung manh mot chut: dat manh vao giua o cua no.
+                        return trayFrameAt(
+                            left = slot.offset.x + (slot.size.width - frameWidth * trayScale) / 2f,
+                            top = slot.offset.y + (slot.size.height - frameHeight * trayScale) / 2f
+                        )
+                    }
+                    val slot = trayListState.layoutInfo.visibleItemsInfo
+                        .firstOrNull { it.key == pieceId }
+                    return trayFrameAt(slot?.offset?.toFloat() ?: middle)
                 }
-            }
 
-            // Nut don: cac manh roi le cung bay ve cuoi khay, lech nhip nhau cho de nhin.
-            cleaningPieceIds.forEachIndexed { index, cleanedId ->
-                key(cleanedId) {
-                    val piece = playState.puzzle.pieces.firstOrNull { it.id == cleanedId }
-                    val placement = playState.placements[cleanedId]
-                    if (piece != null && placement != null && !placement.isInTray) {
+                /**
+                 * Cuoi khay - dich cua manh duoc don ve. Khay dai hon man hinh thi cuoi khay nam
+                 * ngoai vung thay duoc, luc do manh bay den mep phai khay roi bien vao danh sach.
+                 */
+                val trayEnd = run {
+                    val maxLeft = trayListSize.width - frameWidth * trayScale
+                    if (trayExpanded) {
+                        val last = trayGridState.layoutInfo.visibleItemsInfo.lastOrNull()
+                        trayFrameAt(
+                            left = (last?.let { (it.offset.x + it.size.width).toFloat() } ?: 0f)
+                                .coerceAtMost(maxLeft),
+                            top = last?.let {
+                                it.offset.y + (it.size.height - frameHeight * trayScale) / 2f
+                            }
+                        )
+                    } else {
+                        val last = trayListState.layoutInfo.visibleItemsInfo.lastOrNull()
+                        val left = last?.let { (it.offset + it.size).toFloat() } ?: 0f
+                        trayFrameAt(left.coerceAtMost(maxLeft))
+                    }
+                }
+
+                hintPieceId?.let { flyingId ->
+                    val piece = playState.puzzle.pieces.firstOrNull { it.id == flyingId }
+                    if (piece != null) {
+                        val inTray = playState.isInTray(flyingId)
                         FlyingPiece(
                             piece = piece,
                             image = image,
@@ -675,46 +852,75 @@ private fun PlayArea(
                             slotWidth = slotWidth,
                             slotHeight = slotHeight,
                             margin = margin,
-                            start = boardFrameOf(placement.position),
-                            startScale = 1f,
-                            end = trayEnd,
-                            endScale = trayScale,
-                            durationMillis = CLEAN_FLIGHT_MILLIS,
-                            delayMillis = index * CLEAN_STAGGER_MILLIS,
-                            endAlpha = CLEAN_LANDING_ALPHA,
-                            onLanded = { onCleanPieceLanded(cleanedId) }
+                            start = if (inTray) {
+                                traySlotOf(flyingId)
+                            } else {
+                                boardFrameOf(playState.placements.getValue(flyingId).position)
+                            },
+                            startScale = if (inTray) trayScale else 1f,
+                            end = boardFrameOf(playState.targetOf(piece)),
+                            endScale = 1f,
+                            onLanded = { onHintPieceLanded(flyingId) }
                         )
                     }
                 }
-            }
-        }
 
-        trayDragPieceId?.let { draggedId ->
-            val piece = playState.puzzle.pieces.firstOrNull { it.id == draggedId }
-            if (piece != null && boardSizePx > 0f) {
-                val boardSize = with(LocalDensity.current) { boardSizePx.toDp() }
-                val slotWidth = boardSize / cols
-                val slotHeight = boardSize / rows
-                val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
-                JigsawPieceView(
-                    piece = piece,
-                    image = image,
-                    rows = rows,
-                    cols = cols,
-                    boardSizePx = boardSizePx,
-                    slotWidth = slotWidth,
-                    slotHeight = slotHeight,
-                    margin = margin,
-                    isPlaced = false,
-                    modifier = Modifier.graphicsLayer {
-                        val position = trayDragPosition.value
-                        translationX = position.x - areaOrigin.x -
-                                boardSizePx / cols / 2 - margin.toPx()
-                        translationY = position.y - areaOrigin.y -
-                                boardSizePx / rows / 2 - margin.toPx()
+                // Nut don: cac manh roi le cung bay ve cuoi khay, lech nhip nhau cho de nhin.
+                cleaningPieceIds.forEachIndexed { index, cleanedId ->
+                    key(cleanedId) {
+                        val piece = playState.puzzle.pieces.firstOrNull { it.id == cleanedId }
+                        val placement = playState.placements[cleanedId]
+                        if (piece != null && placement != null && !placement.isInTray) {
+                            FlyingPiece(
+                                piece = piece,
+                                image = image,
+                                rows = rows,
+                                cols = cols,
+                                boardSizePx = boardSizePx,
+                                slotWidth = slotWidth,
+                                slotHeight = slotHeight,
+                                margin = margin,
+                                start = boardFrameOf(placement.position),
+                                startScale = 1f,
+                                end = trayEnd,
+                                endScale = trayScale,
+                                durationMillis = CLEAN_FLIGHT_MILLIS,
+                                delayMillis = index * CLEAN_STAGGER_MILLIS,
+                                endAlpha = CLEAN_LANDING_ALPHA,
+                                onLanded = { onCleanPieceLanded(cleanedId) }
+                            )
+                        }
                     }
-                )
+                }
             }
+
+            trayDragPieceId?.let { draggedId ->
+                val piece = playState.puzzle.pieces.firstOrNull { it.id == draggedId }
+                if (piece != null && boardSizePx > 0f) {
+                    val boardSize = with(LocalDensity.current) { boardSizePx.toDp() }
+                    val slotWidth = boardSize / cols
+                    val slotHeight = boardSize / rows
+                    val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
+                    JigsawPieceView(
+                        piece = piece,
+                        image = image,
+                        rows = rows,
+                        cols = cols,
+                        boardSizePx = boardSizePx,
+                        slotWidth = slotWidth,
+                        slotHeight = slotHeight,
+                        margin = margin,
+                        isPlaced = false,
+                        modifier = Modifier.graphicsLayer {
+                            val position = trayDragPosition.value
+                            translationX = position.x - areaOrigin.x -
+                                    boardSizePx / cols / 2 - margin.toPx()
+                            translationY = position.y - areaOrigin.y -
+                                    boardSizePx / rows / 2 - margin.toPx()
+                        }
+                    )
+                }
+        }
         }
     }
 }

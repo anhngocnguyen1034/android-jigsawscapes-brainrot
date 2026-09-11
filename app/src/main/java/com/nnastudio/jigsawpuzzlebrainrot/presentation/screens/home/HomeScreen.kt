@@ -1,6 +1,14 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.home
 
+import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.animateColor
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.core.updateTransition
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -9,11 +17,14 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsIgnoringVisibility
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.windowInsetsPadding
@@ -23,17 +34,14 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DateRange
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.List
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -46,10 +54,15 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -73,8 +86,12 @@ import com.nnastudio.jigsawpuzzlebrainrot.utils.assetUri
  */
 private val PUZZLE_DIFFICULTY = Difficulty.DEFAULT
 
-/** Ba muc cua thanh dieu huong duoi. */
-private enum class HomeTab { DISCOVER, DAILY, MINE }
+/** Ba muc cua thanh dieu huong duoi, kem icon va nhan cua tung muc. */
+private enum class HomeTab(@DrawableRes val iconRes: Int, @StringRes val labelRes: Int) {
+    DISCOVER(R.drawable.ic_nav_discover, R.string.home_tab_discover),
+    DAILY(R.drawable.ic_nav_daily, R.string.home_tab_daily),
+    MINE(R.drawable.ic_nav_mine, R.string.home_tab_mine)
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -124,6 +141,9 @@ private fun HomeContent(
             onSettingsClick = onSettingsClick
         )
 
+        // Thanh dieu huong noi tren noi dung chu khong chiem mot dai rieng o day man hinh:
+        // anh o duoi cung van tran qua sau the, chi can chua san cho o cuoi cac danh sach
+        // ([NAV_BAR_SPACE]) de muc cuoi khong bi the che mat.
         Box(modifier = Modifier.weight(1f)) {
             when {
                 uiState.isLoading -> Box(
@@ -144,33 +164,42 @@ private fun HomeContent(
                     onPuzzleClick = onPuzzleClick
                 )
 
-                else -> when (tab) {
-                    HomeTab.DISCOVER -> DiscoverTab(
-                        uiState = uiState,
-                        onPuzzleClick = onPuzzleClick,
-                        onSeeAll = onCategorySelected
-                    )
+                // Doi tab thi noi dung mo dan vao nhau thay vi thay thang, cung nhip voi
+                // thanh dieu huong duoi.
+                else -> Crossfade(
+                    targetState = tab,
+                    animationSpec = tween(NAV_ANIM_MILLIS),
+                    label = "homeTab"
+                ) { current ->
+                    when (current) {
+                        HomeTab.DISCOVER -> DiscoverTab(
+                            uiState = uiState,
+                            onPuzzleClick = onPuzzleClick,
+                            onSeeAll = onCategorySelected
+                        )
 
-                    HomeTab.DAILY -> DailyTab(uiState = uiState, onPuzzleClick = onPuzzleClick)
+                        HomeTab.DAILY -> DailyTab(uiState = uiState, onPuzzleClick = onPuzzleClick)
 
-                    HomeTab.MINE -> MineTab(
-                        uiState = uiState,
-                        page = minePage,
-                        onPageSelected = { minePage = it },
-                        onPuzzleClick = onPuzzleClick
-                    )
+                        HomeTab.MINE -> MineTab(
+                            uiState = uiState,
+                            page = minePage,
+                            onPageSelected = { minePage = it },
+                            onPuzzleClick = onPuzzleClick
+                        )
+                    }
                 }
             }
-        }
 
-        HomeNavigationBar(
-            selected = tab,
-            onSelect = { selected ->
-                // Doi tab thi bo bo loc dang mo, khong thi tab nao cung ra cung mot luoi.
-                onCategorySelected(null)
-                tab = selected
-            }
-        )
+            HomeNavigationBar(
+                selected = tab,
+                onSelect = { selected ->
+                    // Doi tab thi bo bo loc dang mo, khong thi tab nao cung ra cung mot luoi.
+                    onCategorySelected(null)
+                    tab = selected
+                },
+                modifier = Modifier.align(Alignment.BottomCenter)
+            )
+        }
     }
 }
 
@@ -198,8 +227,12 @@ private fun HomeTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        TextButton(onClick = onSettingsClick) {
-            Text(text = stringResource(R.string.action_settings))
+        IconButton(onClick = onSettingsClick) {
+            Icon(
+                painter = painterResource(R.drawable.ic_settings),
+                contentDescription = stringResource(R.string.action_settings),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
         }
     }
 }
@@ -247,6 +280,8 @@ private fun DiscoverTab(
                 onPuzzleClick = onPuzzleClick
             )
         }
+
+        Spacer(modifier = Modifier.height(NAV_BAR_SPACE))
     }
 }
 
@@ -261,7 +296,10 @@ private fun DailyTab(uiState: HomeUiState, onPuzzleClick: (String) -> Unit) {
         return
     }
     Column(
-        modifier = Modifier.fillMaxSize().padding(16.dp),
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(16.dp)
+            .padding(bottom = NAV_BAR_SPACE),
         verticalArrangement = Arrangement.Center
     ) {
         Text(
@@ -418,7 +456,12 @@ private fun PuzzleGrid(
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(2),
-        contentPadding = PaddingValues(16.dp),
+        contentPadding = PaddingValues(
+            start = 16.dp,
+            top = 16.dp,
+            end = 16.dp,
+            bottom = 16.dp + NAV_BAR_SPACE
+        ),
         horizontalArrangement = Arrangement.spacedBy(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
@@ -498,29 +541,136 @@ private fun DailyPuzzleCard(
     }
 }
 
+/**
+ * Thanh dieu huong duoi kieu vien thuoc: mot the trang bo goc tron han, noi len khoi nen va
+ * cach le man hinh, thay cho thanh vuong tron chieu ngang cua Material. Muc dang chon hien
+ * icon mau nhan kem ten muc, cac muc con lai chi con icon mo.
+ */
 @Composable
-private fun HomeNavigationBar(selected: HomeTab, onSelect: (HomeTab) -> Unit) {
-    NavigationBar {
-        NavigationBarItem(
-            selected = selected == HomeTab.DISCOVER,
-            onClick = { onSelect(HomeTab.DISCOVER) },
-            icon = { Icon(imageVector = Icons.Filled.Home, contentDescription = null) },
-            label = { Text(text = stringResource(R.string.home_tab_discover)) }
+private fun HomeNavigationBar(
+    selected: HomeTab,
+    onSelect: (HomeTab) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        shape = RoundedCornerShape(percent = 50),
+        color = MaterialTheme.colorScheme.surface,
+        shadowElevation = NAV_BAR_ELEVATION,
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(horizontal = NAV_BAR_MARGIN, vertical = NAV_BAR_MARGIN)
+            .height(NAV_BAR_HEIGHT)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxSize(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            HomeTab.entries.forEach { tab ->
+                HomeNavigationItem(
+                    tab = tab,
+                    selected = tab == selected,
+                    onClick = { onSelect(tab) },
+                    // Chia deu chieu ngang: moi muc giu dung mot phan ba thanh nen doi muc
+                    // thi cac icon khong bi day qua lai.
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Mot muc cua thanh dieu huong. Doi muc thi mau icon, co icon va do mo cua ten muc chuyen
+ * dan chu khong nhay mot phat. Cho cua ten muc luon duoc chua san (muc khong duoc chon thi
+ * ten trong suot), nen icon dung yen mot cho khi bam qua lai.
+ */
+@Composable
+private fun HomeNavigationItem(
+    tab: HomeTab,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val label = stringResource(tab.labelRes)
+    val transition = updateTransition(targetState = selected, label = "navItem")
+    val color by transition.animateColor(
+        transitionSpec = { tween(NAV_ANIM_MILLIS) },
+        label = "color"
+    ) { isSelected ->
+        if (isSelected) {
+            MaterialTheme.colorScheme.primary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = NAV_ICON_IDLE_ALPHA)
+        }
+    }
+    // Icon cua muc dang chon phong to mot chut, nay len theo kieu lo xo cho co suc song.
+    val scale by transition.animateFloat(
+        transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy) },
+        label = "scale"
+    ) { isSelected -> if (isSelected) NAV_ICON_SELECTED_SCALE else 1f }
+    val labelAlpha by transition.animateFloat(
+        transitionSpec = { tween(NAV_ANIM_MILLIS) },
+        label = "labelAlpha"
+    ) { isSelected -> if (isSelected) 1f else 0f }
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center,
+        modifier = modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .selectable(
+                selected = selected,
+                role = Role.Tab,
+                onClick = onClick
+            )
+            // Nhan la ten muc nen khong doc lai ten do o icon va chu ben trong.
+            .clearAndSetSemantics { contentDescription = label }
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+    ) {
+        Icon(
+            painter = painterResource(tab.iconRes),
+            contentDescription = null,
+            tint = color,
+            modifier = Modifier
+                .size(NAV_ICON_SIZE)
+                .scale(scale)
         )
-        NavigationBarItem(
-            selected = selected == HomeTab.DAILY,
-            onClick = { onSelect(HomeTab.DAILY) },
-            icon = { Icon(imageVector = Icons.Filled.DateRange, contentDescription = null) },
-            label = { Text(text = stringResource(R.string.home_tab_daily)) }
-        )
-        NavigationBarItem(
-            selected = selected == HomeTab.MINE,
-            onClick = { onSelect(HomeTab.MINE) },
-            icon = { Icon(imageVector = Icons.Filled.List, contentDescription = null) },
-            label = { Text(text = stringResource(R.string.home_tab_mine)) }
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = color,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .graphicsLayer { alpha = labelAlpha }
         )
     }
 }
+
+/** Khoang cach tu the dieu huong duoi den le man hinh - the noi len chu khong dinh vao le. */
+private val NAV_BAR_MARGIN = 16.dp
+
+/** Chieu cao cua the dieu huong duoi, du cho icon cong ten muc cua muc dang chon. */
+private val NAV_BAR_HEIGHT = 72.dp
+
+/** Cho phai chua o cuoi noi dung de thanh dieu huong khong che mat muc cuoi cung. */
+private val NAV_BAR_SPACE = NAV_BAR_HEIGHT + NAV_BAR_MARGIN * 2
+
+/** Do noi cua the dieu huong duoi so voi nen. */
+private val NAV_BAR_ELEVATION = 10.dp
+
+/** Co icon trong thanh dieu huong duoi. */
+private val NAV_ICON_SIZE = 26.dp
+
+/** Do mo cua icon o cac muc khong duoc chon. */
+private const val NAV_ICON_IDLE_ALPHA = 0.55f
+
+/** Co icon cua muc dang chon so voi cac muc khac. */
+private const val NAV_ICON_SELECTED_SCALE = 1.1f
+
+/** Thoi luong doi muc o thanh dieu huong (ms), dung chung cho ca noi dung ben tren. */
+private const val NAV_ANIM_MILLIS = 220
 
 /** Be ngang cua the anh trong hang ngang. */
 private val ROW_CARD_WIDTH = 148.dp

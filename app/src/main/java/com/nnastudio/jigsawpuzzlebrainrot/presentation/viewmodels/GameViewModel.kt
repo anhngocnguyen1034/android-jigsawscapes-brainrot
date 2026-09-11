@@ -38,6 +38,7 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
+import kotlin.math.abs
 import kotlin.random.Random
 
 @HiltViewModel
@@ -75,17 +76,162 @@ class GameViewModel @Inject constructor(
             if (saved == null || !resume(saved)) newGame()
         }
         autoSave()
-        observeBoardBackground()
+        observeSettingsFlags()
     }
 
-    /** Nen ban choi la cai dat chung nen doc tu settings, khong nam trong ban luu cua van. */
-    private fun observeBoardBackground() {
+    /**
+     * Nen ban choi, am thanh, rung va che do chon nhieu deu la cai dat chung nen doc tu
+     * settings, khong nam trong ban luu cua van. Nguoi choi doi cai dat roi quay lai van
+     * dang do la thay co hieu luc ngay.
+     */
+    private fun observeSettingsFlags() {
         viewModelScope.launch {
-            observeSettings()
-                .map { it.boardBackground }
-                .distinctUntilChanged()
-                .collect { background -> _uiState.update { it.copy(boardBackground = background) } }
+            observeSettings().distinctUntilChanged().collect { settings ->
+                _uiState.update {
+                    it.copy(
+                        boardBackground = settings.boardBackground,
+                        soundEnabled = settings.soundEnabled,
+                        vibrationEnabled = settings.vibrationEnabled,
+                        multiSelectEnabled = settings.multiSelectEnabled,
+                        // Tat che do chon nhieu giua chung thi bo luon nhung manh dang cham -
+                        // tru khi hop manh dang mo, vi trong hop luon cham chon duoc.
+                        selectedTrayPieceIds = if (settings.multiSelectEnabled || it.trayExpanded) {
+                            it.selectedTrayPieceIds
+                        } else {
+                            emptySet()
+                        }
+                    )
+                }
+            }
         }
+    }
+
+    /**
+     * Mo / dong hop manh. Dong hop khi dang tat che do chon nhieu thi bo luon nhung manh
+     * dang cham: ngoai hop, hang khay khong cho cham chon nua.
+     */
+    fun onTrayExpandedChange(expanded: Boolean) {
+        _uiState.update { state ->
+            state.copy(
+                trayExpanded = expanded,
+                selectedTrayPieceIds = if (expanded || state.multiSelectEnabled) {
+                    state.selectedTrayPieceIds
+                } else {
+                    emptySet()
+                }
+            )
+        }
+    }
+
+    /**
+     * Cham mot manh de chon / bo chon. Cham chon duoc khi hop manh dang mo (hop sinh ra de
+     * chon nhieu manh mot luc), hoac khi nguoi choi bat che do chon nhieu cho ca hang khay.
+     * Manh da roi khoi khay (duoc keo ra, hay do goi y) thi khong con trong danh sach nay.
+     */
+    fun onTrayPieceTapped(pieceId: Int) {
+        val state = _uiState.value
+        if (!state.multiSelectEnabled && !state.trayExpanded) return
+        _uiState.update { state ->
+            val selected = state.selectedTrayPieceIds
+            state.copy(
+                selectedTrayPieceIds = if (pieceId in selected) {
+                    selected - pieceId
+                } else {
+                    selected + pieceId
+                }
+            )
+        }
+    }
+
+    /**
+     * Dua cac manh dang cham len ban choi mot luot. Chung duoc rai deu trong vung choi chu
+     * khong chong len nhau: nguoi choi dang muon nhin thay ca nhom cung luc de so voi anh.
+     *
+     * Hop manh dong lai luon: nguoi choi vua bao "dua len ban" thi viec tiep theo cua ho la
+     * nhin ban choi, de hop mo thi no che mat dung nhung manh vua dua len.
+     *
+     * Manh nao roi vao dung o cua no thi [PuzzlePlayState.releaseFromTray] tu khoa lai, y
+     * het nhu khi keo tay tha vao dung cho.
+     */
+    fun onSelectedPiecesReleased() {
+        val state = _uiState.value
+        val playState = state.playState ?: return
+        val ids = state.selectedTrayPieceIds.filter { playState.isInTray(it) }
+        if (ids.isEmpty()) {
+            _uiState.update { it.copy(selectedTrayPieceIds = emptySet(), trayExpanded = false) }
+            return
+        }
+
+        val positions = scatterPositions(playState, ids.size)
+        var updated = playState
+        ids.forEachIndexed { index, pieceId ->
+            updated = updated.releaseFromTray(pieceId, positions[index])
+        }
+        _uiState.update {
+            it.copy(
+                playState = updated,
+                selectedTrayPieceIds = emptySet(),
+                trayExpanded = false,
+                droppedPieceIds = ids.toSet(),
+                lastMovedPieceId = ids.lastOrNull(),
+                isSolved = updated.isSolved
+            )
+        }
+        clearDroppedPieces(ids.toSet())
+        if (updated.isSolved) onSolved(updated.moves)
+    }
+
+    /**
+     * Tra danh sach manh vua dua len ban ve rong sau khi nhip nay len chay xong. Phai xoa
+     * that: con ten trong danh sach thi lan sau dua dung manh do len se khong con nhip nay
+     * nua (voi man hinh, danh sach khong doi la khong co gi moi).
+     *
+     * Chi xoa dung nhung manh cua luot nay, phong khi nguoi choi kip bam them mot luot khac
+     * trong luc cho.
+     */
+    private fun clearDroppedPieces(ids: Set<Int>) {
+        viewModelScope.launch {
+            delay(DROP_POP_DURATION)
+            _uiState.update { it.copy(droppedPieceIds = it.droppedPieceIds - ids) }
+        }
+    }
+
+    /**
+     * Cho dat cho [count] manh sap duoc dua len ban choi.
+     *
+     * Vung choi duoc chia thanh luoi o, moi o rong hon manh [SCATTER_GAP] lan nen hai manh
+     * o hai o canh nhau van con khe ho - khong manh nao dinh sat manh nao. Nhung o dang co
+     * manh roi nam san (cac lan them truoc, hay manh nguoi choi tu keo ra) bi loai truoc khi
+     * chia, nho vay lan them sau khong dat de len lan truoc.
+     *
+     * Het o trong that su thi danh dung lai ca luoi - luc do ban choi da chat kin manh roi.
+     */
+    private fun scatterPositions(playState: PuzzlePlayState, count: Int): List<PieceOffset> {
+        if (count <= 0) return emptyList()
+        val bounds = playState.bounds
+        val difficulty = playState.puzzle.difficulty
+        val stepX = SCATTER_GAP / difficulty.cols
+        val stepY = SCATTER_GAP / difficulty.rows
+        val width = (bounds.maxX - bounds.minX).coerceAtLeast(0f)
+        val height = (bounds.maxY - bounds.minY).coerceAtLeast(0f)
+        val cols = (width / stepX).toInt() + 1
+        val rows = (height / stepY).toInt() + 1
+        // Luoi can giua vung choi: phan du chia deu cho hai ben.
+        val startX = bounds.minX + (width - stepX * (cols - 1)) / 2f
+        val startY = bounds.minY + (height - stepY * (rows - 1)) / 2f
+        val slots = List(rows * cols) { i ->
+            PieceOffset(x = startX + stepX * (i % cols), y = startY + stepY * (i / cols))
+        }
+
+        val taken = playState.loosePieces.mapNotNull { playState.placements[it.id]?.position }
+        val free = slots.filter { slot ->
+            taken.none { abs(it.x - slot.x) < stepX / 2f && abs(it.y - slot.y) < stepY / 2f }
+        }
+        val usable = free.ifEmpty { slots }
+        // Nhay cach deu tren danh sach o trong de ca nhom trai rong ca vung choi, thay vi
+        // don het ve goc tren-trai.
+        val jump = (usable.size / count).coerceAtLeast(1)
+        return List(count) { i -> usable[(i * jump) % usable.size] }
     }
 
     /** Loc khay: chi hien manh vien, hay hien lai tat ca. */
@@ -378,7 +524,19 @@ class GameViewModel @Inject constructor(
     private companion object {
         const val TICK_MILLIS = 1_000L
 
+        /**
+         * O rai manh rong gap nay lan canh mot manh: lon hon 1 nen giua hai manh canh nhau
+         * luon con khe ho, nhin ra ngay tung manh mot.
+         */
+        const val SCATTER_GAP = 1.35f
+
         /** Moi bao nhieu giay thi ghi lai gio cua van dang choi. */
         const val SAVE_CLOCK_SECONDS = 15
+
+        /**
+         * Nhip manh moi nay len tren ban choi keo dai bao lau (ms). Dai hon nhip ve mot chut
+         * de danh sach chi rong sau khi manh da dung han.
+         */
+        const val DROP_POP_DURATION = 600L
     }
 }

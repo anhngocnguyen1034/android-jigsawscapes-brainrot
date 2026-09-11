@@ -23,6 +23,7 @@ class SettingsDataSource @Inject constructor(
             themeMode = ThemeMode.fromValue(prefs[THEME_MODE]),
             soundEnabled = prefs[SOUND_ENABLED] ?: true,
             vibrationEnabled = prefs[VIBRATION_ENABLED] ?: true,
+            multiSelectEnabled = prefs[MULTI_SELECT_ENABLED] ?: false,
             languageCode = prefs[LANGUAGE_CODE] ?: "en",
             boardBackground = BoardBackground.fromValue(prefs[BOARD_BACKGROUND])
         )
@@ -33,6 +34,9 @@ class SettingsDataSource @Inject constructor(
     suspend fun setSoundEnabled(enabled: Boolean) = edit { it[SOUND_ENABLED] = enabled }
 
     suspend fun setVibrationEnabled(enabled: Boolean) = edit { it[VIBRATION_ENABLED] = enabled }
+
+    suspend fun setMultiSelectEnabled(enabled: Boolean) =
+        edit { it[MULTI_SELECT_ENABLED] = enabled }
 
     suspend fun setLanguageCode(code: String) = edit { it[LANGUAGE_CODE] = code }
 
@@ -47,6 +51,7 @@ class SettingsDataSource @Inject constructor(
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val SOUND_ENABLED = booleanPreferencesKey("sound_enabled")
         val VIBRATION_ENABLED = booleanPreferencesKey("vibration_enabled")
+        val MULTI_SELECT_ENABLED = booleanPreferencesKey("multi_select_enabled")
         val LANGUAGE_CODE = stringPreferencesKey("language_code")
         val BOARD_BACKGROUND = stringPreferencesKey("board_background")
     }

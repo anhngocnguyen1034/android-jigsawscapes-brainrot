@@ -240,12 +240,11 @@ private fun PieceCountPicker(
             }?.index ?: options.indexOf(selected).coerceAtLeast(0)
         }
     }
-    // Cuon den dau la chon den do; nguoi choi khong phai bam xac nhan. Chi bao khi ngon tay
-    // da roi va da het da: cat lai anh xem truoc la viec nang, lam theo tung moc luot qua
-    // giua khung thi ca cu vuot bi giat.
-    val settled = !listState.isScrollInProgress
-    LaunchedEffect(centered, settled) {
-        if (!settled) return@LaunchedEffect
+    // Cuon den dau la chon den do ngay lap tuc, khong cho ngon tay roi: keo tu 64 manh len
+    // 400 manh thi anh xem truoc doi theo tung moc luot qua giua khung. Cat lai anh la viec
+    // nang nhung no chay o luong nen (xem SolvedBoard) nen cu vuot van muot, anh chi chay
+    // sau mot nhip.
+    LaunchedEffect(centered) {
         options.getOrNull(centered)?.let { if (it != selected) onSelected(it) }
     }
 

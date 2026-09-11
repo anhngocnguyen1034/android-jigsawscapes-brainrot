@@ -247,9 +247,8 @@ data class PuzzlePlayState(
     }
 
     /**
-     * Manh o mot trong 4 goc khung. Goc la diem tua de dung khung nen no duoc hut tu xa hon
-     * han cac manh khac ([CORNER_SNAP_RATIO]): keo den gan goc la manh tu nhay vao dung cho,
-     * ca trong luc di chuyen lan khi tha tay.
+     * Manh o mot trong 4 goc khung. Goc la diem tua de dung khung nen no duoc hut noi tay hon
+     * cac manh khac mot chut ([CORNER_SNAP_RATIO]), ca trong luc di chuyen lan khi tha tay.
      */
     fun isCornerPiece(pieceId: Int): Boolean {
         val piece = puzzle.pieces.firstOrNull { it.id == pieceId } ?: return false
@@ -258,7 +257,7 @@ data class PuzzlePlayState(
         return (piece.row == 0 || piece.row == lastRow) && (piece.col == 0 || piece.col == lastCol)
     }
 
-    /** Nguong hut vao dung o cua rieng mot manh: manh goc duoc hut tu xa hon. */
+    /** Nguong hut vao dung o cua rieng mot manh: manh goc duoc hut noi tay hon mot chut. */
     private fun boardSnapThresholdOf(pieceId: Int, threshold: Float): Float =
         if (isCornerPiece(pieceId)) threshold * CORNER_SNAP_RATIO / SNAP_RATIO else threshold
 
@@ -268,7 +267,7 @@ data class PuzzlePlayState(
      *
      * Chi cac manh vien duoc hut som nhu vay, cac manh ben trong chi nhay vao cho khi tha
      * ([dropPiece]) - manh trong long buc anh khong co moc nao de doi chieu nen hut som chi
-     * lam manh giat khoi ngon tay. Rieng 4 manh goc duoc hut tu xa hon ([isCornerPiece]).
+     * lam manh giat khoi ngon tay. Rieng 4 manh goc duoc hut noi tay hon ([isCornerPiece]).
      */
     fun dragSnapOffset(
         pieceId: Int,
@@ -283,6 +282,29 @@ data class PuzzlePlayState(
         // giua cac manh trong mot khoi da chinh xac.
         val fit = findBoardFit(setOf(pieceId), snapThreshold, PieceOffset(dx, dy)) ?: return null
         return PieceOffset(fit.dx, fit.dy)
+    }
+
+    /**
+     * Nhu [dragSnapOffset] nhung cho manh dang duoc keo thang tu khay ra: manh chua co toa
+     * do tren ban co nen cho dang nham toi ([position], toa do ban co cua goc tren-trai o)
+     * duoc dua vao thay cho vi tri hien tai.
+     *
+     * Nho vay manh vien hut vao o ngay giua duong keo tu khay len, khong doi nguoi choi tha
+     * xuong ban co roi kem theo mot luot keo thu hai.
+     */
+    fun trayDragSnapOffset(
+        pieceId: Int,
+        position: PieceOffset,
+        snapThreshold: Float = this.snapThreshold
+    ): PieceOffset? {
+        if (placements[pieceId]?.isInTray != true) return null
+        if (!isEdgePiece(pieceId)) return null
+        val piece = puzzle.pieces.firstOrNull { it.id == pieceId } ?: return null
+        val target = targetOf(piece)
+        val dx = target.x - position.x
+        val dy = target.y - position.y
+        if (hypot(dx, dy) > boardSnapThresholdOf(pieceId, snapThreshold)) return null
+        return PieceOffset(dx, dy)
     }
 
     /**
@@ -523,13 +545,12 @@ data class PuzzlePlayState(
         private const val SNAP_RATIO = 0.18f
 
         /**
-         * Nguong hut rieng cho 4 manh goc: gan bang ca mot manh, rong hon han [SNAP_RATIO].
-         * O tren ban co la o trong, khong co manh nao ben canh de nguoi choi ngam cho dung -
-         * nguong chat nhu manh thuong thi keo manh goc vao dung goc khung ma van khong vao
-         * cho. Goc khung chi co mot cho duy nhat nen hut tu xa cung khong so vao sai o.
-         * Xem [isCornerPiece].
+         * Nguong hut rieng cho 4 manh goc: chi rong hon [SNAP_RATIO] mot chut, gan nhu manh
+         * vien thuong. Goc khung chi co mot cho duy nhat nen noi tay hon manh thuong cho de
+         * dat, nhung hut tu ca mot manh thi manh tu nhay vao goc khi nguoi choi chi dinh keo
+         * ngang qua - mat cam giac tu dat manh. Xem [isCornerPiece].
          */
-        private const val CORNER_SNAP_RATIO = 0.9f
+        private const val CORNER_SNAP_RATIO = 0.25f
 
         /** Sai so coi nhu da nam dung tuong quan (dung khi gop them khoi ke ben). */
         private const val ALIGNED_EPSILON = 1e-4f
