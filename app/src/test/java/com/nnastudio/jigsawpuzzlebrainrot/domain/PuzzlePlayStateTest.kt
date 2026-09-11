@@ -132,8 +132,6 @@ class PuzzlePlayStateTest {
     @Test
     fun `should return a loose piece to any slot in the tray`() {
         var state = newTrayState()
-        // Manh giua canh: [LOOSE_SPOT] van con trong vung hut cua goc khung nen manh goc
-        // tha o day la khoa luon, khong con roi de tra ve khay.
         val piece = puzzle.pieces.first { it.row == 0 && it.col == 1 }
         state = state.releaseFromTray(piece.id, LOOSE_SPOT)
         val trayBefore = state.trayOrder
@@ -377,8 +375,8 @@ class PuzzlePlayStateTest {
         val state = newBoardState()
         val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
         val edge = puzzle.pieces.first { it.row == 0 && it.col == 1 }
-        // Luoi 3x3: nguong thuong la 0.06, nguong cua manh goc la 0.30.
-        val gap = 0.10f
+        // Luoi 3x3: nguong thuong la 0.06, nguong cua manh goc la 0.083.
+        val gap = 0.07f
 
         val edgeDrag = offsetTo(state, edge, gap)
         val cornerDrag = offsetTo(state, corner, gap)
@@ -391,17 +389,14 @@ class PuzzlePlayStateTest {
     }
 
     @Test
-    fun `should pull a corner piece into its slot from almost a piece away`() {
+    fun `should leave a corner piece loose when it is still far from the frame corner`() {
         val state = newBoardState()
         val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
-        // Luoi 3x3: mot manh rong 0.333, nguong cua manh goc la 0.30 - keo den gan goc
-        // khung la manh vao cho, khong phai dat trung khop.
-        val gap = 0.25f
+        // Nguong cua manh goc chi noi hon manh thuong mot chut: keo ngang qua goc khung ma
+        // con cach nua manh thi manh khong tu nhay vao.
+        val gap = 0.15f
 
-        val snap = offsetTo(state, corner, gap).let { state.dragSnapOffset(corner.id, it.x, it.y) }
-
-        assertEquals(-gap, snap!!.x, TOLERANCE)
-        assertEquals(0f, snap.y, TOLERANCE)
+        assertNull(offsetTo(state, corner, gap).let { state.dragSnapOffset(corner.id, it.x, it.y) })
     }
 
     @Test
@@ -412,14 +407,16 @@ class PuzzlePlayStateTest {
         val target = state.targetOf(corner)
         // Tha manh goc dung vao cho ma tuong quan hai manh doi hoi (manh ke ben con roi),
         // nhung cho do van nam trong vung hut cua goc khung: goc khung phai thang.
-        val loose = state.placements.getValue(neighbour.id).position
+        val neighbourTarget = state.targetOf(neighbour)
+        val loose = PieceOffset(neighbourTarget.x + 0.05f, neighbourTarget.y + 0.05f)
         val glued = PieceOffset(loose.x - 1f / puzzle.difficulty.cols, loose.y)
         val staged = state
             .withBounds(PieceBounds(minX = -1f, minY = -1f, maxX = 2f, maxY = 2f))
             .let {
                 it.copy(
-                    placements = it.placements + (corner.id to
-                        it.placements.getValue(corner.id).copy(position = glued))
+                    placements = it.placements +
+                        (neighbour.id to it.placements.getValue(neighbour.id).copy(position = loose)) +
+                        (corner.id to it.placements.getValue(corner.id).copy(position = glued))
                 )
             }
 
@@ -439,7 +436,7 @@ class PuzzlePlayStateTest {
         val corner = puzzle.pieces.first { it.row == 0 && it.col == 0 }
         val target = state.targetOf(corner)
 
-        val drag = offsetTo(state, corner, 0.10f)
+        val drag = offsetTo(state, corner, 0.07f)
         val dropped = state
             .movePiece(corner.id, drag.x, drag.y)
             .dropPiece(corner.id)
