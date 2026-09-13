@@ -1,20 +1,22 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.components
 
-import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.VisibilityThreshold
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.slideInVertically
-import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitVerticalTouchSlopOrCancellation
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.gestures.drag
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -22,6 +24,7 @@ import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.LazyRow
@@ -34,11 +37,13 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -62,7 +67,70 @@ import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPiece
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.math.roundToInt
+
+/**
+ * Trang thai truot cua hop manh, dung chung giua hop va lop phu lam toi man hinh phia sau.
+ *
+ * [offset] la doan hop dang bi day xuong (px): 0 la mo het, [heightPx] la nam tron duoi day
+ * man hinh. Ca hop lan lop phu chi doc gia tri nay trong lambda cua `graphicsLayer`, nen
+ * moi frame cua nhip truot khong recompose gi - do la ly do hop khong con khung khi mo.
+ */
+@Stable
+class TraySheetState(val heightPx: Float) {
+
+    val offset = Animatable(heightPx)
+
+    /** 0 = hop dong han, 1 = mo het. Lop phu lay do toi theo day. */
+    val progress: Float get() = if (heightPx <= 0f) 0f else 1f - offset.value / heightPx
+
+    /** Truot hop ve trang thai mong muon. */
+    suspend fun animateTo(expanded: Boolean) {
+        offset.animateTo(
+            targetValue = if (expanded) 0f else heightPx,
+            animationSpec = tween(TRAY_SHEET_DURATION, easing = FastOutSlowInEasing)
+        )
+    }
+
+    /** Keo tay cam: hop di theo ngon tay, khong keo len qua mep tren cua no. */
+    suspend fun dragBy(delta: Float) {
+        offset.snapTo((offset.value + delta).coerceIn(0f, heightPx))
+    }
+
+    /**
+     * Nha tay sau khi keo: hat xuong du manh, hay da keo hop di qua [CLOSE_FRACTION] chieu
+     * cao cua no, thi hop dong han; con lai thi hop tro ve cho cu.
+     */
+    fun shouldClose(velocity: Float): Boolean = when {
+        velocity > FLING_VELOCITY -> true
+        // Dang hat nguoc len tren: giu hop lai du no da bi keo xuong kha xa.
+        velocity < -FLING_VELOCITY -> false
+        else -> offset.value > heightPx * CLOSE_FRACTION
+    }
+
+    private companion object {
+        /** Keo hop di qua bao nhieu phan chieu cao cua no thi nha tay la hop dong han. */
+        const val CLOSE_FRACTION = 0.3f
+
+        /** Hat tay nhanh hon muc nay (px/s) la dong hop du moi keo duoc mot doan ngan. */
+        const val FLING_VELOCITY = 800f
+    }
+}
+
+/**
+ * Trang thai hop manh cho mot man choi. Doi be cao man hinh (xoay may) thi dung lai tu dau:
+ * doan truot do theo chieu cao moi.
+ */
+@Composable
+fun rememberTraySheetState(): TraySheetState {
+    val heightPx = with(LocalDensity.current) {
+        (LocalConfiguration.current.screenHeightDp.dp * TRAY_SHEET_FRACTION).toPx()
+    }
+    return remember(heightPx) { TraySheetState(heightPx) }
+}
 
 /**
  * Khay manh ghep nam ngang phia duoi ban co, cuon ngang.
@@ -71,10 +139,8 @@ import kotlin.math.roundToInt
  * chen dung cho vua tha trong danh sach. Danh sach hien ra do nguoi goi truyen vao ([pieces])
  * nen man hinh loc bot duoc, con thu tu that cua khay van nam trong [playState].
  *
- * Nut mui ten ngay tren khay mo rong khay thanh mot hop luoi cuon doc ([expanded]) de nhin
- * duoc nhieu manh mot luc, bam lan nua thu ve mot hang nhu cu. Trong hop, keo doc la cuon
- * danh sach chu khong nhac manh: muon dua manh len ban thi cham chon roi bam nut dua ca nhom
- * len - nguoi choi khoi phai keo tung manh.
+ * Nut mui ten ngay tren khay mo [JigsawTraySheet] - hop manh nhieu hang, de nhin duoc nhieu
+ * manh mot luc; bam lan nua thi hop dong lai va con moi hang khay nhu cu.
  *
  * Cho cua manh vua nhac len thu dan ve 0 (khong bien mat ngay) va no lai neu manh duoc tha
  * xuong khay, con cac manh xung quanh truot sang cho moi; nho vay keo ra / them lai khong
@@ -82,8 +148,8 @@ import kotlin.math.roundToInt
  *
  * Dua manh vao ban co bang cach keo manh len (vuot doc) - [onDragStart]/[onDragMove]/
  * [onDragEnd] bao toa do ngon tay theo goc cua cay layout de man hinh doi sang toa do ban
- * co. Manh thuong chi vao cho khi nguoi choi nhac tay ([onDragEnd]); rieng manh vien co the
- * hut vao o ngay giua duong keo, luc do man hinh ket thuc luot keo tu [onDragMove].
+ * co. Keo den gan dung cho thi manh hut vao ngay giua duong keo, luc do man hinh ket thuc
+ * luot keo tu [onDragMove]; con lai thi manh vao cho khi nguoi choi nhac tay ([onDragEnd]).
  *
  * Vuot ngang khong bi bat lam keo manh de danh sach con cuon duoc: chi khi vuot doc vuot
  * qua touch slop thi manh moi duoc nhac len.
@@ -101,6 +167,8 @@ fun JigsawTrayView(
     /** Manh dang bay tu khay vao o cua no (goi y): cho cu trong khay de trong. */
     hintPieceId: Int?,
     listState: LazyListState,
+    /** Hinh manh da nuong san; null la chua nuong xong, khay tu ve lay tung manh. */
+    pieceAtlas: TrayPieceAtlas? = null,
     onDragStart: (pieceId: Int, position: Offset) -> Unit,
     onDragMove: (position: Offset) -> Unit,
     onDragEnd: (position: Offset) -> Unit,
@@ -109,11 +177,7 @@ fun JigsawTrayView(
     selectedPieceIds: Set<Int> = emptySet(),
     /** null = dang tat che do chon nhieu, cham vao manh khong co tac dung gi. */
     onPieceTapped: ((pieceId: Int) -> Unit)? = null,
-    /** Khay dang mo rong thanh hop nhieu hang hay dang thu ve mot hang. */
-    expanded: Boolean = false,
     onExpandedChange: (Boolean) -> Unit = {},
-    /** Trang thai cuon cua hop mo rong; tach khoi [listState] vi hai kieu danh sach khac nhau. */
-    gridState: LazyGridState = rememberLazyGridState(),
     /**
      * Goc va kich thuoc cua rieng vung danh sach (khong tinh nut mui ten): man hinh dung no
      * de biet manh trong khay dang nam o dau ma cho manh bay den.
@@ -121,171 +185,280 @@ fun JigsawTrayView(
     onListMeasured: (origin: Offset, size: IntSize) -> Unit = { _, _ -> },
     modifier: Modifier = Modifier,
     maxPieceSize: Dp = TRAY_PIECE_SIZE,
-    /** Phan duoi cung cua khay (nut dua manh len ban): mo hop thi no nam trong tam hop. */
+    /** Phan duoi cung cua khay: nut dua ca nhom manh len ban choi. */
     footer: @Composable ColumnScope.() -> Unit = {}
 ) {
-    val rows = playState.puzzle.difficulty.rows
-    val cols = playState.puzzle.difficulty.cols
-    val trayBoardPx = trayBoardSizePx(boardSizePx, rows, cols, maxPieceSize)
-    val trayBoard = with(LocalDensity.current) { trayBoardPx.toDp() }
-    val slotWidth = trayBoard / cols
-    val slotHeight = trayBoard / rows
-    val margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
-
+    val metrics = trayMetrics(playState, boardSizePx, maxPieceSize)
     // Cao khay khong phu thuoc ti le manh: ban co lay phan con lai bang weight(1f), neu cao
     // khay chay theo ban co thi hai ben do lan nhau.
     val rowHeight = maxPieceSize * (1f + TAB_RATIO * 2)
-    // Hop manh do theo be cao man hinh chu khong theo vung choi: nguoi choi thay dung mot
-    // phan man hinh du man to hay nho, va vung choi phia sau khong doi kich thuoc.
-    val sheetHeight = LocalConfiguration.current.screenHeightDp.dp * TRAY_SHEET_FRACTION
 
-    // Cho cua manh do theo danh sach dang hien: hop dang mo thi la luoi trong hop, dong roi
-    // thi la hang khay. Do ca hai se dap len nhau, manh bay ve mot cho sai.
-    val measuredModifier = Modifier.onGloballyPositioned {
-        onListMeasured(it.positionInRoot(), it.size)
-    }
-    val contentPadding = PaddingValues(horizontal = 12.dp, vertical = TRAY_PADDING)
+    Column(modifier = modifier.fillMaxWidth()) {
+        TrayToggle(expanded = false, onExpandedChange = onExpandedChange)
 
-    @Composable
-    fun TrayPiece(piece: JigsawPiece, itemModifier: Modifier) {
-        TrayPieceItem(
-            piece = piece,
-            image = image,
-            rows = rows,
-            cols = cols,
-            trayBoardPx = trayBoardPx,
-            slotWidth = slotWidth,
-            slotHeight = slotHeight,
-            margin = margin,
-            lifted = piece.id == draggedPieceId || piece.id == hintPieceId,
-            selected = piece.id in selectedPieceIds,
-            onPieceTapped = onPieceTapped,
-            // Hop cuon doc: keo doc la de cuon danh sach nen manh khong con nhac ra duoc,
-            // muon dua manh len ban thi cham chon roi bam nut.
-            draggable = !expanded,
-            onDragStart = onDragStart,
-            onDragMove = onDragMove,
-            onDragEnd = onDragEnd,
-            modifier = itemModifier
-        )
-    }
-
-    // Hai tam chong nhau: hang khay thu gon nam duoi, hop manh truot len de len no. Doi
-    // hop bang cach doi han bo cuc (hang <-> luoi) thi man hinh phai dung 64 manh cua luoi
-    // ngay trong mot nhip - do la cu khung luc mo hop. Cach nay dung luoi mot lan roi chi
-    // truot no, nen nhip mo / dong khong con phai do lai gi.
-    Box(
-        modifier = modifier.fillMaxWidth(),
-        contentAlignment = Alignment.BottomCenter
-    ) {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            TrayToggle(expanded = false, onExpandedChange = onExpandedChange)
-
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(rowHeight + TRAY_PADDING * 2)
-                    .clip(TRAY_SHAPE)
-                    // Nen khay trong mot phan de mau nen ban choi nhin xuyen qua duoc.
-                    .background(AnhnnTheme.extraColors.boardSlot.copy(alpha = TRAY_ALPHA))
-                    .then(if (expanded) Modifier else measuredModifier),
-                state = listState,
-                contentPadding = contentPadding,
-                horizontalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                items(items = pieces, key = { it.id }) { piece ->
-                    TrayPiece(
-                        piece,
-                        Modifier.animateItem(
-                            fadeInSpec = tween(TRAY_SLOT_DURATION),
-                            placementSpec = TRAY_PLACEMENT_SPEC,
-                            fadeOutSpec = null
-                        )
-                    )
-                }
-            }
-
-            footer()
-        }
-
-        AnimatedVisibility(
-            visible = expanded,
-            // Truot len / xuong theo dung chieu cao cua chinh no: hop di het ra khoi man hinh
-            // roi moi bien mat, khong nhay cai mot.
-            enter = slideInVertically(
-                animationSpec = tween(TRAY_SHEET_DURATION, easing = FastOutSlowInEasing),
-                initialOffsetY = { it }
-            ),
-            exit = slideOutVertically(
-                animationSpec = tween(TRAY_SHEET_DURATION, easing = FastOutSlowInEasing),
-                targetOffsetY = { it }
-            )
+        LazyRow(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(rowHeight + TRAY_PADDING * 2)
+                .clip(TRAY_SHAPE)
+                // Nen khay trong mot phan de mau nen ban choi nhin xuyen qua duoc.
+                .background(AnhnnTheme.extraColors.boardSlot.copy(alpha = TRAY_ALPHA))
+                .onGloballyPositioned { onListMeasured(it.positionInRoot(), it.size) },
+            state = listState,
+            contentPadding = TRAY_CONTENT_PADDING,
+            horizontalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(sheetHeight)
-                    // Tam hop dac va bo tron hai goc tren: nut mui ten nam trong hop nhu tay
-                    // cam cua bottom sheet, phia sau da co lop phu lam toi ban co.
-                    .clip(TRAY_SHAPE)
-                    .background(MaterialTheme.colorScheme.surface)
-            ) {
-                TrayToggle(expanded = true, onExpandedChange = onExpandedChange)
-
-                LazyVerticalGrid(
-                    // O rong bang mot manh: bao nhieu cot la tuy be ngang may.
-                    columns = GridCells.Adaptive(minSize = rowHeight),
-                    // Luoi an het phan con lai cua hop: nut mui ten va nut dua manh len ban
-                    // lay phan cua minh truoc, cao hop van dung bang [sheetHeight].
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .weight(1f)
-                        .then(if (expanded) measuredModifier else Modifier),
-                    state = gridState,
-                    contentPadding = contentPadding,
-                    horizontalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING),
-                    verticalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING)
-                ) {
-                    items(items = pieces, key = { it.id }) { piece ->
-                        // O luoi rong hon manh (cot keo dan cho vua be ngang may): dat manh
-                        // vao giua o cho ca luoi deu nhau.
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .animateItem(
-                                    fadeInSpec = tween(TRAY_SLOT_DURATION),
-                                    placementSpec = TRAY_PLACEMENT_SPEC,
-                                    fadeOutSpec = null
-                                ),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            TrayPiece(piece, Modifier)
-                        }
-                    }
-                }
-
-                footer()
+            items(items = pieces, key = { it.id }) { piece ->
+                TrayPieceItem(
+                    piece = piece,
+                    image = image,
+                    metrics = metrics,
+                    atlas = pieceAtlas,
+                    lifted = piece.id == draggedPieceId || piece.id == hintPieceId,
+                    selected = piece.id in selectedPieceIds,
+                    onPieceTapped = onPieceTapped,
+                    // Hop manh dang mo thi hang khay nam khuat hoan toan ben duoi hop nen
+                    // khong ai cham toi no: khong can tat viec nhac manh o day, va nho vay
+                    // mo / dong hop khong dong den hang khay lay mot nhip nao.
+                    draggable = true,
+                    onDragStart = onDragStart,
+                    onDragMove = onDragMove,
+                    onDragEnd = onDragEnd,
+                    modifier = Modifier.animateItem(
+                        fadeInSpec = tween(TRAY_SLOT_DURATION),
+                        placementSpec = TRAY_PLACEMENT_SPEC,
+                        fadeOutSpec = null
+                    )
+                )
             }
         }
+
+        footer()
     }
 }
 
-/** Nut mui ten mo / thu khay, nam tren cung cua hang khay va cua hop manh. */
+/**
+ * Hop manh: mot bottom sheet that su, truot len tu day man hinh de nhin duoc nhieu manh mot
+ * luc. Trong hop khong nhac manh ra duoc (keo doc la cuon luoi): muon dua manh len ban thi
+ * cham chon roi bam nut o [footer], nguoi choi khoi phai keo tung manh.
+ *
+ * Hop nam o mot lop rieng chu khong long trong [JigsawTrayView]: nho vay khay thu gon van
+ * cao dung bang mot hang manh, va nhung gi do theo mep tren cua khay (nhu tha manh xuong
+ * day de tra ve khay) khong bi lech di khi hop mo.
+ *
+ * Hop luon duoc dung san, ke ca luc dang dong - luc do no chi bi day xuong duoi mep man
+ * hinh. Mo hop vi the chi la truot mot lop da ve xong: doan truot nam trong [sheetState] va
+ * chi duoc doc trong lambda cua `graphicsLayer` nen khong recompose gi. Dung lai luoi manh
+ * ngay trong nhip mo hop moi la cu khung thay ro.
+ *
+ * Vi le do hop khong nhan tham so "dang mo hay dang dong": doi mot tham so nhu vay se lam
+ * ca hop ve lai dung vao frame bat dau mo, tuc la ve lai ca luoi manh - dung cai khung ma
+ * lop rieng nay sinh ra de tranh. Muon dong / mo thi bao qua [sheetState].
+ *
+ * Keo tay cam xuong cung dong duoc hop, va lop phu phia sau sang lai dung theo doan da keo.
+ */
 @Composable
-private fun ColumnScope.TrayToggle(expanded: Boolean, onExpandedChange: (Boolean) -> Unit) {
-    IconButton(
-        onClick = { onExpandedChange(!expanded) },
-        modifier = Modifier
-            .align(Alignment.CenterHorizontally)
-            .size(TRAY_TOGGLE_SIZE)
+fun JigsawTraySheet(
+    playState: PuzzlePlayState,
+    pieces: List<JigsawPiece>,
+    image: ImageBitmap,
+    draggedPieceId: Int?,
+    hintPieceId: Int?,
+    /** Doan truot cua hop, dung chung voi lop phu lam toi man hinh phia sau. */
+    sheetState: TraySheetState,
+    /** Hinh manh da nuong san; null la chua nuong xong, hop tu ve lay tung manh. */
+    pieceAtlas: TrayPieceAtlas? = null,
+    onExpandedChange: (Boolean) -> Unit,
+    boardSizePx: Float,
+    /** Trang thai cuon cua luoi trong hop; tach khoi khay vi hai kieu danh sach khac nhau. */
+    gridState: LazyGridState = rememberLazyGridState(),
+    selectedPieceIds: Set<Int> = emptySet(),
+    onPieceTapped: ((pieceId: Int) -> Unit)? = null,
+    /** Goc va kich thuoc cua luoi manh, de man hinh biet cho manh bay ve dau. */
+    onListMeasured: (origin: Offset, size: IntSize) -> Unit = { _, _ -> },
+    modifier: Modifier = Modifier,
+    maxPieceSize: Dp = TRAY_PIECE_SIZE,
+    /** Phan duoi cung cua hop: nut dua ca nhom manh len ban choi. */
+    footer: @Composable ColumnScope.() -> Unit = {}
+) {
+    val metrics = trayMetrics(playState, boardSizePx, maxPieceSize)
+    val rowHeight = maxPieceSize * (1f + TAB_RATIO * 2)
+    val sheetHeight = with(LocalDensity.current) { sheetState.heightPx.toDp() }
+    val scope = rememberCoroutineScope()
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .height(sheetHeight)
+            // Hop dong thi nam tron duoi mep man hinh nen khong an cham cua ai: ban co phia
+            // sau van bam duoc binh thuong, khong can chan gi them.
+            .graphicsLayer { translationY = sheetState.offset.value }
+            // Tam hop dac va bo tron hai goc tren: nut mui ten nam trong hop nhu tay cam
+            // cua bottom sheet, phia sau da co lop phu lam toi ban co.
+            .clip(TRAY_SHAPE)
+            .background(AnhnnTheme.extraColors.traySheet)
     ) {
-        Icon(
-            painter = painterResource(if (expanded) R.drawable.ic_down else R.drawable.ic_up),
-            contentDescription = stringResource(
-                if (expanded) R.string.action_collapse_tray else R.string.action_expand_tray
+        TrayToggle(
+            expanded = true,
+            onExpandedChange = onExpandedChange,
+            // Tay cam keo duoc nhu bottom sheet that: hop di theo ngon tay, tha ra thi dong
+            // han hay tro ve cho cu tuy da keo duoc bao xa.
+            modifier = Modifier.draggable(
+                state = rememberDraggableState { delta ->
+                    scope.launch { sheetState.dragBy(delta) }
+                },
+                orientation = Orientation.Vertical,
+                onDragStopped = { velocity ->
+                    if (sheetState.shouldClose(velocity)) {
+                        onExpandedChange(false)
+                    } else {
+                        sheetState.animateTo(expanded = true)
+                    }
+                }
             )
         )
+
+        LazyVerticalGrid(
+            // O rong bang mot manh: bao nhieu cot la tuy be ngang may.
+            columns = GridCells.Adaptive(minSize = rowHeight),
+            // Luoi an het phan con lai cua hop: nut mui ten va nut dua manh len ban lay
+            // phan cua minh truoc, cao hop van dung bang [TraySheetState.heightPx].
+            modifier = Modifier
+                .fillMaxWidth()
+                .weight(1f)
+                .onGloballyPositioned { onListMeasured(it.positionInRoot(), it.size) },
+            state = gridState,
+            contentPadding = TRAY_CONTENT_PADDING,
+            horizontalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING),
+            verticalArrangement = Arrangement.spacedBy(TRAY_ITEM_SPACING)
+        ) {
+            items(items = pieces, key = { it.id }) { piece ->
+                // O luoi rong hon manh (cot keo dan cho vua be ngang may): dat manh vao
+                // giua o cho ca luoi deu nhau.
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .animateItem(
+                            fadeInSpec = tween(TRAY_SLOT_DURATION),
+                            placementSpec = TRAY_PLACEMENT_SPEC,
+                            fadeOutSpec = null
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    TrayPieceItem(
+                        piece = piece,
+                        image = image,
+                        metrics = metrics,
+                        atlas = pieceAtlas,
+                        lifted = piece.id == draggedPieceId || piece.id == hintPieceId,
+                        selected = piece.id in selectedPieceIds,
+                        onPieceTapped = onPieceTapped,
+                        // Keo doc trong hop la cuon luoi, khong nhac manh ra.
+                        draggable = false,
+                        onDragStart = { _, _ -> },
+                        onDragMove = {},
+                        onDragEnd = {}
+                    )
+                }
+            }
+        }
+
+        footer()
+    }
+}
+
+/**
+ * Nuong san hinh cua moi manh o co khay, o luong nen.
+ *
+ * Hang khay va hop manh dung chung mot tam anh: ca hai ve manh cung mot co nen khong viec
+ * gi phai nuong hai lan. Chua nuong xong thi tra ve null va khay ve tung manh nhu truoc.
+ */
+@Composable
+fun rememberTrayPieceAtlas(
+    playState: PuzzlePlayState,
+    image: ImageBitmap,
+    boardSizePx: Float,
+    maxPieceSize: Dp = TRAY_PIECE_SIZE
+): TrayPieceAtlas? {
+    val rows = playState.puzzle.difficulty.rows
+    val cols = playState.puzzle.difficulty.cols
+    val boardPx = trayBoardSizePx(boardSizePx, rows, cols, maxPieceSize)
+    val density = LocalDensity.current
+    val pieces = playState.puzzle.pieces
+    val atlas by produceState<TrayPieceAtlas?>(null, pieces, image, boardPx, density) {
+        // Chua do xong ban co thi khoan nuong: co manh trong khay do theo ban co, nuong
+        // bay gio la lat nua do xong lai phai nuong lai tu dau.
+        if (boardSizePx <= 0f) return@produceState
+        value = withContext(Dispatchers.Default) {
+            renderTrayPieceAtlas(
+                pieces = pieces,
+                image = image,
+                boardSizePx = boardPx,
+                rows = rows,
+                cols = cols,
+                density = density
+            )
+        }
+    }
+    return atlas
+}
+
+/** Kich thuoc de ve mot manh trong khay - hang thu gon va hop manh dung chung. */
+private data class TrayMetrics(
+    val rows: Int,
+    val cols: Int,
+    val boardPx: Float,
+    val slotWidth: Dp,
+    val slotHeight: Dp,
+    val margin: Dp
+)
+
+@Composable
+private fun trayMetrics(
+    playState: PuzzlePlayState,
+    boardSizePx: Float,
+    maxPieceSize: Dp
+): TrayMetrics {
+    val rows = playState.puzzle.difficulty.rows
+    val cols = playState.puzzle.difficulty.cols
+    val boardPx = trayBoardSizePx(boardSizePx, rows, cols, maxPieceSize)
+    val board = with(LocalDensity.current) { boardPx.toDp() }
+    val slotWidth = board / cols
+    val slotHeight = board / rows
+    return TrayMetrics(
+        rows = rows,
+        cols = cols,
+        boardPx = boardPx,
+        slotWidth = slotWidth,
+        slotHeight = slotHeight,
+        margin = maxOf(slotWidth, slotHeight) * TAB_RATIO
+    )
+}
+
+/**
+ * Nut mui ten mo / thu khay, nam tren cung cua hang khay va cua hop manh. Nut nam giua mot
+ * dai tran het be ngang: o hop manh, [modifier] bien ca dai do thanh tay cam keo duoc, nen
+ * nguoi choi khong phai trung dung vao mui ten moi keo dong hop.
+ */
+@Composable
+private fun TrayToggle(
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+        IconButton(
+            onClick = { onExpandedChange(!expanded) },
+            modifier = Modifier.size(TRAY_TOGGLE_SIZE)
+        ) {
+            Icon(
+                painter = painterResource(if (expanded) R.drawable.ic_down else R.drawable.ic_up),
+                contentDescription = stringResource(
+                    if (expanded) R.string.action_collapse_tray else R.string.action_expand_tray
+                )
+            )
+        }
     }
 }
 
@@ -299,12 +472,9 @@ private fun ColumnScope.TrayToggle(expanded: Boolean, onExpandedChange: (Boolean
 private fun TrayPieceItem(
     piece: JigsawPiece,
     image: ImageBitmap,
-    rows: Int,
-    cols: Int,
-    trayBoardPx: Float,
-    slotWidth: Dp,
-    slotHeight: Dp,
-    margin: Dp,
+    metrics: TrayMetrics,
+    /** Hinh manh da nuong san; null thi ve manh tai cho. */
+    atlas: TrayPieceAtlas?,
     /** Manh dang duoc keo / dang bay: lop noi ben tren ve no, cho trong khay thu lai. */
     lifted: Boolean,
     selected: Boolean,
@@ -387,17 +557,36 @@ private fun TrayPieceItem(
                 alpha = if (lifted) 0f else 1f
             }
     ) {
-        JigsawPieceView(
-            piece = piece,
-            image = image,
-            rows = rows,
-            cols = cols,
-            boardSizePx = trayBoardPx,
-            slotWidth = slotWidth,
-            slotHeight = slotHeight,
-            margin = margin,
-            isPlaced = false
-        )
+        val baked = atlas?.offsetOf(piece.id)
+        if (baked != null) {
+            // Hinh manh da co san trong tam anh chung: chi con dan mot o cua no len man
+            // hinh, khong phai clip lai duong bao moi khung hinh.
+            Canvas(
+                modifier = Modifier.requiredSize(
+                    metrics.slotWidth + metrics.margin * 2,
+                    metrics.slotHeight + metrics.margin * 2
+                )
+            ) {
+                drawImage(
+                    image = atlas.image,
+                    srcOffset = baked,
+                    srcSize = atlas.pieceSize,
+                    dstSize = IntSize(size.width.roundToInt(), size.height.roundToInt())
+                )
+            }
+        } else {
+            JigsawPieceView(
+                piece = piece,
+                image = image,
+                rows = metrics.rows,
+                cols = metrics.cols,
+                boardSizePx = metrics.boardPx,
+                slotWidth = metrics.slotWidth,
+                slotHeight = metrics.slotHeight,
+                margin = metrics.margin,
+                isPlaced = false
+            )
+        }
     }
 }
 
@@ -426,6 +615,9 @@ private val TRAY_PADDING = 8.dp
 
 /** Khoang ho giua hai manh trong khay. */
 private val TRAY_ITEM_SPACING = 4.dp
+
+/** Le trong cua danh sach manh: hang khay va luoi trong hop dung chung cho deu nhau. */
+private val TRAY_CONTENT_PADDING = PaddingValues(horizontal = 12.dp, vertical = TRAY_PADDING)
 
 /** Canh cua nut mui ten mo / thu khay. */
 private val TRAY_TOGGLE_SIZE = 32.dp

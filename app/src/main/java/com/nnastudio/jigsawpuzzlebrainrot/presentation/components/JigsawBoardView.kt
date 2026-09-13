@@ -16,6 +16,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -26,6 +27,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,12 +39,17 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.BoardSlotColors
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.slotColors
 
 /** Goc bo tron cua khung ban co. */
 private val BOARD_CORNER = 12.dp
+
+/** Do day net vien cua khung ghep. */
+private val BOARD_BORDER = 1.5.dp
 
 /**
  * Ngon tay phai di qua ngan nay thi moi tinh la keo manh (thay cho touch slop he thong, von
@@ -62,9 +69,6 @@ private val PIECE_POP_SPEC = spring<Float>(
     dampingRatio = Spring.DampingRatioMediumBouncy,
     stiffness = Spring.StiffnessMediumLow
 )
-
-/** Do duc cua khung ban co: du de thay ranh gioi o ghep, van nhin xuyen ra mau nen. */
-private const val BOARD_ALPHA = 0.32f
 
 /** Zoom ban co toi da: du to de ghep luoi 8x8 tren may nho, chua den muc mat huong nhin chung. */
 private const val MAX_BOARD_ZOOM = 3f
@@ -154,6 +158,8 @@ fun JigsawBoardView(
     /** Manh vien vua hut vao o giua luc keo: dat va khoa no ngay, luot keo ket thuc. */
     onPieceDragSnap: (pieceId: Int, dx: Float, dy: Float) -> Unit,
     onPieceDragEnd: (pieceId: Int, dx: Float, dy: Float, finger: Offset) -> Unit,
+    /** Mau khung ghep, do theo nen ban choi nguoi choi dang chon. */
+    boardColors: BoardSlotColors = BoardBackground.DEFAULT.slotColors(),
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -162,6 +168,25 @@ fun JigsawBoardView(
     val draggingGroup = draggingPieceId?.let(playState::groupOf)
     val lastMovedGroup = lastMovedPieceId?.let(playState::groupOf)
     val draggingGroupSize = draggingGroup?.let { playState.groupMembers(it).size } ?: 0
+    // Thu tu de len nhau cua cac manh roi: khoi nao vua duoc dong den thi len tren cung va
+    // nam nguyen do cho den khi chinh no bi dong den lai.
+    //
+    // Chi cho rieng "khoi vua di" noi len thi khong du: buong tay ra, dong sang mot manh
+    // thu ba la khoi vua di tut ve thu tu goc (thu tu cat manh), nen hai manh dang de len
+    // nhau tu dung doi cho cho nhau du nguoi choi khong cham vao chung.
+    val stackOrder = remember(playState.puzzle) { mutableStateListOf<Int>() }
+    val bumpedGroup = draggingGroup ?: lastMovedGroup
+    LaunchedEffect(bumpedGroup) {
+        if (bumpedGroup != null) {
+            stackOrder.remove(bumpedGroup)
+            stackOrder.add(bumpedGroup)
+        }
+    }
+    // Manh chua duoc dong den nam duoi cung (1f), cac khoi da dong den xep dan len theo
+    // dung thu tu tren - tat ca van duoi khoi dang keo (3f).
+    val stackZ = stackOrder.withIndex().associate { (index, group) ->
+        group to 1f + (index + 1f) / (stackOrder.size + 1f)
+    }
     // Doan da keo, tinh bang px, chi doc trong lambda cua graphicsLayer.
     val dragOffset = remember { mutableStateOf(Offset.Zero) }
     // Cu keo xong la ViewModel bao lai vi tri that; luc do moi bo doan keo tam.
@@ -225,7 +250,6 @@ fun JigsawBoardView(
         // vung choi thi rang buoc layout cua cha se kep kich thuoc cua Box lai, con net ve
         // thi khong - no chi bi cat o mep vung choi dung nhu mong doi.
         // Khung ban co cung trong mot phan: doi mau nen ban choi la thay doi ca o day.
-        val boardColor = AnhnnTheme.extraColors.boardSlot.copy(alpha = BOARD_ALPHA)
         val boardLeftPx = with(density) { boardLeft.toPx() }
         val boardTopPx = with(density) { boardTop.toPx() }
         var areaRoot by remember { mutableStateOf(Offset.Zero) }
@@ -235,11 +259,21 @@ fun JigsawBoardView(
                 .fillMaxSize()
                 .onGloballyPositioned { areaRoot = it.positionInRoot() }
         ) {
+            val topLeft = Offset(boardLeftPx, boardTopPx)
+            val size = Size(boardSizePx, boardSizePx)
+            val corner = CornerRadius(BOARD_CORNER.toPx())
             drawRoundRect(
-                color = boardColor,
-                topLeft = Offset(boardLeftPx, boardTopPx),
-                size = Size(boardSizePx, boardSizePx),
-                cornerRadius = CornerRadius(BOARD_CORNER.toPx())
+                color = boardColors.fill,
+                topLeft = topLeft,
+                size = size,
+                cornerRadius = corner
+            )
+            drawRoundRect(
+                color = boardColors.border,
+                topLeft = topLeft,
+                size = size,
+                cornerRadius = corner,
+                style = Stroke(width = BOARD_BORDER.toPx())
             )
         }
 
@@ -286,9 +320,7 @@ fun JigsawBoardView(
                         when {
                             isDraggingGroup -> 3f
                             placement.isPlaced -> 0f
-                            // Khoi vua duoc thao tac nam tren cac manh roi khac.
-                            lastMovedGroup != null && group == lastMovedGroup -> 2f
-                            else -> 1f
+                            else -> stackZ[group] ?: 1f
                         }
                     )
                     .offset(
