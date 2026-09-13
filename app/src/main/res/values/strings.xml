@@ -22,6 +22,16 @@
     <string name="home_collection_count">%1$d bức</string>
     <string name="card_score">%1$d đ</string>
     <string name="action_play_now">Chơi ngay</string>
+    <string name="home_points">%1$d điểm</string>
+    <string name="home_points_label">Điểm của bạn</string>
+    <string name="card_premium">PRO</string>
+    <string name="card_price">%1$d</string>
+    <string name="card_locked">Bức này đang khoá</string>
+    <string name="unlock_title">Mở khoá bức này?</string>
+    <string name="unlock_message">Mở khoá \"%1$s\" hết %2$d điểm. Bạn đang có %3$d điểm.</string>
+    <string name="unlock_not_enough">Mở khoá \"%1$s\" hết %2$d điểm, bạn mới có %3$d điểm. Ghép thêm %4$d điểm nữa nhé.</string>
+    <string name="action_unlock">Mở khoá</string>
+    <string name="action_later">Để sau</string>
 
     <!-- Bo suu tap -->
     <string name="category_brainrot">Brainrot</string>
@@ -43,7 +53,7 @@
     <string name="game_progress">Đã ghép %1$d/%2$d mảnh</string>
     <string name="action_hint">Gợi ý (%1$d)</string>
     <string name="game_solved">Hoàn thành!</string>
-    <string name="game_score">%1$d điểm</string>
+    <string name="game_score">%1$d</string>
     <string name="action_change_background">Đổi hình nền</string>
     <string name="action_show_edge_pieces">Chỉ hiện mảnh viền</string>
     <string name="action_show_all_pieces">Hiện lại tất cả mảnh</string>

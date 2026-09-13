@@ -5,10 +5,14 @@ import androidx.lifecycle.viewModelScope
 import com.nnastudio.jigsawpuzzlebrainrot.R
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleCategory
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.puzzleOfDay
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ShopRules
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.GetPuzzleListUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveFavoritesUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveProgressUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObservePointsUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveSavedProgressUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveUnlockedPuzzlesUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.UnlockPuzzleUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +31,10 @@ class HomeViewModel @Inject constructor(
     getPuzzleList: GetPuzzleListUseCase,
     observeProgress: ObserveProgressUseCase,
     observeSavedProgress: ObserveSavedProgressUseCase,
-    observeFavorites: ObserveFavoritesUseCase
+    observeFavorites: ObserveFavoritesUseCase,
+    observePoints: ObservePointsUseCase,
+    observeUnlockedPuzzles: ObserveUnlockedPuzzlesUseCase,
+    private val unlockPuzzle: UnlockPuzzleUseCase
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
@@ -35,8 +42,13 @@ class HomeViewModel @Inject constructor(
 
     private val selectedCategory = MutableStateFlow<PuzzleCategory?>(null)
 
+    /** Gia mot buc khoa, chot cho ca man hinh chinh. */
+    private val unlockPrice = ShopRules.unlockPrice()
+
     init {
         viewModelScope.launch {
+            // Vi diem gop lai thanh mot luong truoc: combine chi nhan toi da 5 luong.
+            val wallet = combine(observePoints(), observeUnlockedPuzzles(), ::Wallet)
             combine(
                 selectedCategory.flatMapLatest { category -> getPuzzleList(category) },
                 getPuzzleList(),
@@ -66,9 +78,30 @@ class HomeViewModel @Inject constructor(
                     selectedCategory = selectedCategory.value
                 )
             }
+                .combine(wallet) { state, purse ->
+                    state.copy(
+                        points = purse.points,
+                        // Buc PRO da mua thi mo han, khong con khoa lai o nhung lan sau.
+                        lockedPuzzleIds = state.allPuzzles
+                            .mapNotNullTo(mutableSetOf()) { puzzle ->
+                                puzzle.id.takeIf {
+                                    puzzle.isPremium && it !in purse.unlockedPuzzleIds
+                                }
+                            },
+                        unlockPrice = unlockPrice
+                    )
+                }
                 .catch { _uiState.update { it.copy(isLoading = false, errorMessageRes = R.string.error_load_puzzles) } }
                 .collect { state -> _uiState.value = state }
         }
+    }
+
+    /**
+     * Mua mot buc khoa bang diem. Khong du diem thi khong co gi xay ra - man hinh da khoa
+     * san nut mua trong truong hop do.
+     */
+    fun onUnlockPuzzle(puzzleId: String) {
+        viewModelScope.launch { unlockPuzzle(puzzleId, unlockPrice) }
     }
 
     fun onCategorySelected(category: PuzzleCategory?) {
@@ -78,4 +111,7 @@ class HomeViewModel @Inject constructor(
         selectedCategory.value = category
         _uiState.update { it.copy(isLoading = true, selectedCategory = category) }
     }
+
+    /** Vi diem: so du va nhung buc da mua, di cung nhau nen gop thanh mot luong. */
+    private data class Wallet(val points: Int, val unlockedPuzzleIds: Set<String>)
 }

@@ -10,10 +10,16 @@ import com.nnastudio.jigsawpuzzlebrainrot.utils.currentEpochDay
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.GetPuzzleListUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveFavoritesUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveProgressUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleImage
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ShopRules
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObservePointsUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveSavedProgressUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ObserveUnlockedPuzzlesUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.UnlockPuzzleUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.fake.FakeFavoriteRepository
 import com.nnastudio.jigsawpuzzlebrainrot.fake.FakeProgressRepository
 import com.nnastudio.jigsawpuzzlebrainrot.fake.FakeSavedGameRepository
+import com.nnastudio.jigsawpuzzlebrainrot.fake.FakeWalletRepository
 import com.nnastudio.jigsawpuzzlebrainrot.fake.FakePuzzleRepository
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.HomeViewModel
 import kotlinx.coroutines.Dispatchers
@@ -27,6 +33,7 @@ import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 
@@ -34,17 +41,36 @@ import org.junit.Test
 class HomeViewModelTest {
 
     private val dispatcher = StandardTestDispatcher()
-    private val puzzleRepository = FakePuzzleRepository()
+    private var puzzleRepository = FakePuzzleRepository()
     private val progressRepository = FakeProgressRepository()
     private val savedGameRepository = FakeSavedGameRepository()
     private val favoriteRepository = FakeFavoriteRepository()
+    private var walletRepository = FakeWalletRepository()
 
     private fun viewModel() = HomeViewModel(
         getPuzzleList = GetPuzzleListUseCase(puzzleRepository),
         observeProgress = ObserveProgressUseCase(progressRepository),
         observeSavedProgress = ObserveSavedProgressUseCase(savedGameRepository),
-        observeFavorites = ObserveFavoritesUseCase(favoriteRepository)
+        observeFavorites = ObserveFavoritesUseCase(favoriteRepository),
+        observePoints = ObservePointsUseCase(walletRepository),
+        observeUnlockedPuzzles = ObserveUnlockedPuzzlesUseCase(walletRepository),
+        unlockPuzzle = UnlockPuzzleUseCase(walletRepository)
     )
+
+    /** Catalog co mot buc khoa, kem so diem dang co trong vi. */
+    private fun withLockedPuzzle(points: Int) {
+        puzzleRepository = FakePuzzleRepository(
+            FakePuzzleRepository.defaultPuzzles +
+                PuzzleImage(
+                    id = "lirili",
+                    title = "Lirili",
+                    category = PuzzleCategory.BRAINROT,
+                    assetPath = "puzzles/lirili.webp",
+                    isPremium = true
+                )
+        )
+        walletRepository = FakeWalletRepository(points)
+    }
 
     @Before
     fun setUp() = Dispatchers.setMain(dispatcher)
@@ -160,6 +186,40 @@ class HomeViewModelTest {
         advanceUntilIdle()
 
         assertEquals(emptyList<String>(), viewModel.uiState.value.favorites.map { it.id })
+    }
+
+    @Test
+    fun `should mark a premium puzzle as locked until it is bought`() = runTest(dispatcher) {
+        withLockedPuzzle(points = ShopRules.unlockPrice())
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(setOf("lirili"), viewModel.uiState.value.lockedPuzzleIds)
+        assertEquals(ShopRules.unlockPrice(), viewModel.uiState.value.points)
+        assertEquals(0, viewModel.uiState.value.missingPoints)
+
+        viewModel.onUnlockPuzzle("lirili")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertEquals(emptySet<String>(), state.lockedPuzzleIds)
+        assertEquals(0, state.points)
+    }
+
+    @Test
+    fun `should keep a puzzle locked when the player cannot pay for it`() = runTest(dispatcher) {
+        withLockedPuzzle(points = ShopRules.unlockPrice() - 100)
+        val viewModel = viewModel()
+        advanceUntilIdle()
+
+        assertEquals(100, viewModel.uiState.value.missingPoints)
+
+        viewModel.onUnlockPuzzle("lirili")
+        advanceUntilIdle()
+
+        val state = viewModel.uiState.value
+        assertTrue("lirili" in state.lockedPuzzleIds)
+        assertEquals(ShopRules.unlockPrice() - 100, state.points)
     }
 
     @Test
