@@ -37,6 +37,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -48,6 +49,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.pointerInput
@@ -169,6 +171,10 @@ fun JigsawTrayView(
     listState: LazyListState,
     /** Hinh manh da nuong san; null la chua nuong xong, khay tu ve lay tung manh. */
     pieceAtlas: TrayPieceAtlas? = null,
+    /** Nen cua khay - thanh duoi cua man choi, dung chung mau voi thanh cong cu tren. */
+    barColor: Color = Color.Transparent,
+    /** Mau nut mui ten cua khay, di theo mau icon cua thanh cong cu. */
+    iconColor: Color = Color.Unspecified,
     onDragStart: (pieceId: Int, position: Offset) -> Unit,
     onDragMove: (position: Offset) -> Unit,
     onDragEnd: (position: Offset) -> Unit,
@@ -194,15 +200,18 @@ fun JigsawTrayView(
     val rowHeight = maxPieceSize * (1f + TAB_RATIO * 2)
 
     Column(modifier = modifier.fillMaxWidth()) {
-        TrayToggle(expanded = false, onExpandedChange = onExpandedChange)
+        TrayToggle(
+            expanded = false,
+            onExpandedChange = onExpandedChange,
+            tint = iconColor
+        )
 
         LazyRow(
             modifier = Modifier
                 .fillMaxWidth()
                 .height(rowHeight + TRAY_PADDING * 2)
                 .clip(TRAY_SHAPE)
-                // Nen khay trong mot phan de mau nen ban choi nhin xuyen qua duoc.
-                .background(AnhnnTheme.extraColors.boardSlot.copy(alpha = TRAY_ALPHA))
+                .background(barColor)
                 .onGloballyPositioned { onListMeasured(it.positionInRoot(), it.size) },
             state = listState,
             contentPadding = TRAY_CONTENT_PADDING,
@@ -445,7 +454,8 @@ private fun trayMetrics(
 private fun TrayToggle(
     expanded: Boolean,
     onExpandedChange: (Boolean) -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    tint: Color = Color.Unspecified
 ) {
     Box(modifier = modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
         IconButton(
@@ -456,7 +466,8 @@ private fun TrayToggle(
                 painter = painterResource(if (expanded) R.drawable.ic_down else R.drawable.ic_up),
                 contentDescription = stringResource(
                     if (expanded) R.string.action_collapse_tray else R.string.action_expand_tray
-                )
+                ),
+                tint = if (tint == Color.Unspecified) LocalContentColor.current else tint
             )
         }
     }
@@ -642,7 +653,6 @@ private const val TRAY_SHEET_FRACTION = 0.7f
 private val TRAY_SHAPE = RoundedCornerShape(topStart = 20.dp, topEnd = 20.dp)
 
 /** Do duc cua nen khay: du de tach khay khoi ban co, van thay mau nen phia sau. */
-private const val TRAY_ALPHA = 0.32f
 
 /** Thoi gian cho trong khay thu lai / no ra khi manh roi khoi khay hay tra ve khay (ms). */
 private const val TRAY_SLOT_DURATION = 220

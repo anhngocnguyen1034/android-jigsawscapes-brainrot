@@ -26,19 +26,23 @@ data class AnhnnExtraColors(
      * Nen cua hop manh. Dam hon nen man hinh mot buoc: manh ghep co nhieu mang sang, nam
      * tren nen trang thi khong con thay ro duong cat cua manh.
      */
-    val traySheet: Color
+    val traySheet: Color,
+    /** Khung ghep khi man choi dung nen mac dinh: phu dam len nen sang, phu sang len nen toi. */
+    val slotOnSurface: Color
 )
 
 private val LightExtraColors = AnhnnExtraColors(
     border = Color(0xFFE0E0E0),
     boardSlot = Color(0xFFF1EFFB),
-    traySheet = Color(0xFFE4E0F4)
+    traySheet = Color(0xFFE4E0F4),
+    slotOnSurface = Color.Black.copy(alpha = 0.05f)
 )
 
 private val DarkExtraColors = AnhnnExtraColors(
     border = Color(0xFF444444),
     boardSlot = Color(0xFF232130),
-    traySheet = Color(0xFF232130)
+    traySheet = Color(0xFF232130),
+    slotOnSurface = Color.White.copy(alpha = 0.08f)
 )
 
 val LocalAnhnnColors = staticCompositionLocalOf { LightExtraColors }
