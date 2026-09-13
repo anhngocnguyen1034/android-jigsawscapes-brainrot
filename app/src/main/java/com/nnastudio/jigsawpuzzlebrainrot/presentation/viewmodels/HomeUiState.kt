@@ -4,6 +4,7 @@ import androidx.compose.runtime.Immutable
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleCategory
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleImage
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleProgress
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ShopRules
 
 @Immutable
 data class HomeUiState(
@@ -26,5 +27,14 @@ data class HomeUiState(
     /** puzzleId -> diem cao nhat da dat, chi co o nhung buc da ghep xong. */
     val bestScore: Map<String, Int> = emptyMap(),
     val selectedCategory: PuzzleCategory? = null,
+    /** Diem con lai trong vi, hien o goc tren-phai man hinh chinh. */
+    val points: Int = 0,
+    /** Cac buc con khoa: buc PRO chua duoc mua bang diem. */
+    val lockedPuzzleIds: Set<String> = emptySet(),
+    /** Gia mo mot buc khoa - moi buc cung gia, xem [ShopRules.unlockPrice]. */
+    val unlockPrice: Int = ShopRules.unlockPrice(),
     val errorMessageRes: Int? = null
-)
+) {
+    /** Con thieu bao nhieu diem nua moi mua duoc mot buc khoa; 0 la da du. */
+    val missingPoints: Int get() = (unlockPrice - points).coerceAtLeast(0)
+}

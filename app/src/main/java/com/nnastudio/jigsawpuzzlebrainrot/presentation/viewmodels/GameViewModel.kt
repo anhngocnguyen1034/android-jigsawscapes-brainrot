@@ -15,6 +15,7 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzleSource
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.SavedGame
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.ScoreRules
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.ClearSavedGameUseCase
+import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.EarnPointsUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.GenerateJigsawPuzzleUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.usecases.GetPuzzleDetailUseCase
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.JigsawPuzzle
@@ -49,6 +50,7 @@ class GameViewModel @Inject constructor(
     private val generateJigsawPuzzle: GenerateJigsawPuzzleUseCase,
     private val prepareTray: PrepareTrayUseCase,
     private val savePuzzleResult: SavePuzzleResultUseCase,
+    private val earnPoints: EarnPointsUseCase,
     private val loadSavedGame: LoadSavedGameUseCase,
     private val saveGame: SaveGameUseCase,
     private val clearSavedGame: ClearSavedGameUseCase,
@@ -494,6 +496,9 @@ class GameViewModel @Inject constructor(
             // Van da xong: khong con gi de choi tiep, lan sau vao la van moi.
             clearSavedGame(route.puzzleId, difficulty)
             savePuzzleResult(route.puzzleId, difficulty, seconds, moves, finalScore)
+            // Diem chi vao vi khi ghep xong ca buc: bo do giua chung thi khong an diem,
+            // nen gia mot buc khoa dem duoc bang so van tron ven (xem ShopRules).
+            earnPoints(finalScore)
         }
     }
 

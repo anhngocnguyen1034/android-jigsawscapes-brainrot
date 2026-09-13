@@ -1,8 +1,6 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.screens.game
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
+import android.annotation.SuppressLint
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.FastOutSlowInEasing
@@ -18,6 +16,7 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -86,14 +85,18 @@ import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceOffset
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawBoardView
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawPieceView
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTraySheet
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.JigsawTrayView
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.rememberTrayPieceAtlas
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.rememberTraySheetState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TRAY_COLLAPSED_HEIGHT
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.rememberGameFeedback
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.TAB_RATIO
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.components.trayBoardSizePx
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.color
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.labelRes
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.BoardTheme
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.theme
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameUiState
 import com.nnastudio.jigsawpuzzlebrainrot.presentation.viewmodels.GameViewModel
 import com.nnastudio.jigsawpuzzlebrainrot.utils.toImageBitmap
@@ -173,57 +176,57 @@ private fun GameContent(
 ) {
     var showPeek by remember { mutableStateOf(false) }
     var showBackgrounds by remember { mutableStateOf(false) }
-    // Canh khung ghep, do trong PlayArea: anh mau zoom to nhat bang dung khung nay.
     var boardSizePx by remember { mutableFloatStateOf(0f) }
     val image = remember(uiState.artwork) { uiState.artwork?.toImageBitmap() }
+    // Doi nen la doi ca bon thanh phan mot luc: nen man choi, nen hai thanh, mau icon va
+    // mau khung ghep. Xem [BoardTheme].
+    val boardTheme = uiState.boardBackground.theme()
 
     Box(
         modifier = modifier
             .fillMaxSize()
-            // Mau nen phu ca man hinh (ke ca cho status bar): thanh cong cu, khung ban co va
-            // khay deu trong suot mot phan nen doi nen la ca man hinh doi theo.
-            .background(uiState.boardBackground.color())
-            // Status bar dang bi an nhung khong cho noi dung tran len cho cua no: dai do hay
-            // co camera / notch. IgnoringVisibility = van chua cho du thanh do dang an. Con
-            // cho nav bar thi khay dung luon: nav cung dang an.
+
+            .background(boardTheme.background)
             .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility)
     ) {
-        // Le hai ben nam o tung phan chu khong o ca cot: khay manh phai cham duoc hai mep
-        // man hinh, dat le o cot thi no bi thut vao theo.
         Column(modifier = Modifier.fillMaxSize()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = SCREEN_PADDING)
-                    // Thanh cong cu chi con icon tran: mot lop nen mo de icon khong lan vao
-                    // manh ghep phia sau, van du trong de thay mau nen ban choi.
                     .background(
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = TOP_BAR_ALPHA),
-                        shape = RoundedCornerShape(16.dp)
-                    )
+                        color = boardTheme.bar,)
                     .padding(horizontal = 4.dp, vertical = 2.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(painter = painterResource(R.drawable.ic_back), contentDescription = null)
+                    Icon(
+                        painter = painterResource(R.drawable.ic_back),
+                        contentDescription = null,
+                        tint = boardTheme.icon
+                    )
                 }
                 IconButton(onClick = onCleanRequested, enabled = uiState.canClean) {
                     Icon(
                         painter = painterResource(R.drawable.ic_clean),
-                        contentDescription = stringResource(R.string.action_clean_pieces)
+                        contentDescription = stringResource(R.string.action_clean_pieces),
+                        tint = boardTheme.icon
                     )
                 }
                 Text(
                     text = stringResource(R.string.game_score, uiState.score),
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    color = boardTheme.icon
                 )
                 Row {
                     TextButton(onClick = onHintRequested, enabled = uiState.canUseHint) {
                         Text(text = stringResource(R.string.action_hint, uiState.hintsLeft))
                     }
                 }
-                IconButton(onClick = onToggleEdgePiecesOnly) {
+                IconButton(
+                    onClick = onToggleEdgePiecesOnly,
+                    modifier = Modifier.activeRing(uiState.edgePiecesOnly, boardTheme.icon)
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_edge_pieces),
                         contentDescription = stringResource(
@@ -233,26 +236,23 @@ private fun GameContent(
                                 R.string.action_show_edge_pieces
                             }
                         ),
-                        // Khong con nen nut de bao trang thai bat/tat: doi mau icon.
-                        tint = if (uiState.edgePiecesOnly) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            LocalContentColor.current
-                        }
+                        tint = boardTheme.icon
                     )
                 }
-                IconButton(onClick = { showBackgrounds = !showBackgrounds }) {
+                IconButton(
+                    onClick = { showBackgrounds = !showBackgrounds },
+                    modifier = Modifier.activeRing(showBackgrounds, boardTheme.icon)
+                ) {
                     Icon(
                         painter = painterResource(R.drawable.ic_background),
                         contentDescription = stringResource(R.string.action_change_background),
-                        tint = if (showBackgrounds) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            LocalContentColor.current
-                        }
+                        tint = boardTheme.icon
                     )
                 }
-                IconButton(onClick = { showPeek = !showPeek }) {
+                IconButton(
+                    onClick = { showPeek = !showPeek },
+                    modifier = Modifier.activeRing(showPeek, boardTheme.icon)
+                ) {
                     Icon(
                         painter = painterResource(
                             if (showPeek) R.drawable.ic_eye_slash else R.drawable.ic_eye
@@ -260,11 +260,7 @@ private fun GameContent(
                         contentDescription = stringResource(
                             if (showPeek) R.string.action_hide_image else R.string.action_show_image
                         ),
-                        tint = if (showPeek) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            LocalContentColor.current
-                        }
+                        tint = boardTheme.icon
                     )
                 }
             }
@@ -289,28 +285,6 @@ private fun GameContent(
                 ) { Text(text = stringResource(uiState.errorMessageRes)) }
 
                 uiState.playState != null && image != null -> {
-                    Text(
-                        text = if (uiState.isSolved) {
-                            stringResource(R.string.game_solved)
-                        } else {
-                            stringResource(
-                                R.string.game_progress,
-                                uiState.placedCount,
-                                uiState.totalPieces
-                            )
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = if (uiState.isSolved) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier.padding(
-                            vertical = 4.dp,
-                            horizontal = SCREEN_PADDING
-                        )
-                    )
-
                     PlayArea(
                         playState = uiState.playState,
                         image = image,
@@ -335,13 +309,13 @@ private fun GameContent(
                         onSelectedPiecesReleased = onSelectedPiecesReleased,
                         trayExpanded = uiState.trayExpanded,
                         onTrayExpandedChange = onTrayExpandedChange,
+                        boardTheme = boardTheme,
                         modifier = Modifier.weight(1f)
                     )
                 }
             }
         }
 
-        // Anh mau noi tren cung: phai o ngoai Column de keo duoc ra khap man hinh.
         if (showPeek && image != null) {
             PeekWindow(
                 image = image,
@@ -352,28 +326,22 @@ private fun GameContent(
     }
 }
 
-/**
- * Le hai ben cua thanh cong cu, bang chon nen va dong tien do. Khay manh khong dung le nay:
- * no tran het be ngang man hinh.
- */
 private val SCREEN_PADDING = 12.dp
 
-/** Do toi cua lop phu sau hop manh: du de hop noi len, van con thay ban co mo mo. */
+/**
+ * Vong tron quanh mot icon dang bat. Icon giu nguyen mau cua no - cai bao "dang bat" la
+ * vong tron nay, ve dung cho ma vong tron luc bam vao icon hien ra.
+ */
+private fun Modifier.activeRing(active: Boolean, color: Color): Modifier =
+    if (active) border(width = ACTIVE_RING_WIDTH, color = color, shape = CircleShape) else this
+
+/** Do day cua vong tron bao icon dang bat. */
+private val ACTIVE_RING_WIDTH = 1.5.dp
 private const val TRAY_SCRIM_ALPHA = 0.5f
 
-/** Lop phu mo / tan dan trong bao lau (ms): dat bang nhip truot cua hop manh. */
-private const val TRAY_SCRIM_DURATION = 260
 
-/** Do duc cua lop nen thanh cong cu: du de doc icon, van nhin xuyen thay mau nen ban choi. */
-private const val TOP_BAR_ALPHA = 0.32f
-
-/** Canh mot o mau trong bang chon nen. */
 private val SWATCH_SIZE = 36.dp
 
-/**
- * Bang chon nen ban choi: moi lua chon la mot o mau, o dang dung co vien day. Chon la doi
- * ngay va duoc ghi vao cai dat nen van sau van giu nen do.
- */
 @Composable
 private fun BackgroundPicker(
     selected: BoardBackground,
@@ -391,7 +359,7 @@ private fun BackgroundPicker(
                 modifier = Modifier
                     .size(SWATCH_SIZE)
                     .clip(CircleShape)
-                    .background(background.color())
+                    .background(background.theme().background)
                     .border(
                         width = if (isSelected) 3.dp else 1.dp,
                         color = if (isSelected) {
@@ -423,6 +391,7 @@ private const val PEEK_ALPHA = 0.85f
  * Cua so anh mau: keo di duoc va chum hai ngon tay de zoom. To nhat bang [maxSize] (canh
  * khung ghep) de nguoi choi so anh mau voi ban co o cung mot co.
  */
+@SuppressLint("UnusedBoxWithConstraintsScope")
 @Composable
 private fun PeekWindow(
     image: ImageBitmap,
@@ -537,6 +506,8 @@ private fun PlayArea(
     /** Khay dang mo thanh hop luoi cuon doc. */
     trayExpanded: Boolean,
     onTrayExpandedChange: (Boolean) -> Unit,
+    /** Bang mau cua nen ban choi dang chon: khung ghep va khay deu do theo no. */
+    boardTheme: BoardTheme,
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -551,9 +522,16 @@ private fun PlayArea(
     // null = chua do xong khay, chua biet dau la ranh gioi khay. Day la ca cum khay (tinh ca
     // nut mui ten), dung de biet ngon tay dang o ban co hay da xuong khay.
     var trayOrigin by remember { mutableStateOf<Offset?>(null) }
-    // Rieng vung danh sach manh: cho cua tung manh do theo goc nay.
-    var trayListOrigin by remember { mutableStateOf(Offset.Zero) }
-    var trayListSize by remember { mutableStateOf(IntSize.Zero) }
+    // Rieng vung danh sach manh: cho cua tung manh do theo goc nay. Hang khay va luoi trong
+    // hop do rieng ra hai cho - do chung mot cho thi moi lan mo / dong hop lai phai gan lai
+    // phep do cho ca hai danh sach, va chinh cu do lai do lam nhip mo hop khung mot cai.
+    var trayRowOrigin by remember { mutableStateOf(Offset.Zero) }
+    var trayRowSize by remember { mutableStateOf(IntSize.Zero) }
+    var traySheetOrigin by remember { mutableStateOf(Offset.Zero) }
+    var traySheetSize by remember { mutableStateOf(IntSize.Zero) }
+    // Manh bay ve "khay" nghia la ve danh sach dang hien: hop dang mo thi la luoi trong hop.
+    val trayListOrigin = if (trayExpanded) traySheetOrigin else trayRowOrigin
+    val trayListSize = if (trayExpanded) traySheetSize else trayRowSize
     // Toa do ngon tay khi keo manh tu khay chi duoc doc trong lambda cua offset (pha layout):
     // doc no o pha composition thi moi frame keo se ve lai ca ban co lan khay.
     var trayDragPieceId by remember { mutableStateOf<Int?>(null) }
@@ -563,6 +541,13 @@ private fun PlayArea(
     val latestPlayState = rememberUpdatedState(playState)
     val trayListState = rememberLazyListState()
     val trayGridState = rememberLazyGridState()
+    // Doan truot cua hop manh: hop va lop phu cung doc no trong lambda cua graphicsLayer
+    // nen ca nhip mo / dong khong recompose man choi lay mot frame nao.
+    val traySheetState = rememberTraySheetState()
+    // Hinh manh o co khay duoc nuong san mot lan: mo hop manh la ca luoi manh trong hop
+    // hien ra cung luc, ve lai tung duong bao moi khung hinh thi nhip mo hop khung mot cai.
+    val trayPieceAtlas = rememberTrayPieceAtlas(playState, image, baseBoardSizePx)
+    LaunchedEffect(trayExpanded, traySheetState) { traySheetState.animateTo(trayExpanded) }
     // Manh dang bay (goi y hoac dang duoc don ve khay): ban co de trong cho cua no, lop noi
     // ben tren ve no.
     val flyingPieceIds = remember(hintPieceId, cleaningPieceIds) {
@@ -618,6 +603,7 @@ private fun PlayArea(
                 lastMovedPieceId = lastMovedPieceId,
                 flyingPieceIds = flyingPieceIds,
                 poppingPieceIds = droppedPieceIds,
+                boardColors = boardTheme,
                 onBoardMeasured = { origin, sizePx, baseSizePx, bounds ->
                     boardOrigin = origin
                     boardSizePx = sizePx
@@ -646,29 +632,49 @@ private fun PlayArea(
             Spacer(modifier = Modifier.height(TRAY_COLLAPSED_HEIGHT + 12.dp))
         }
 
-        // Hop manh dang mo: lam toi ca man hinh cho nguoi choi nhin vao hop, cham ra ngoai
-        // hop la dong hop lai. Lop phu mo / tan dan cung nhip voi hop truot len xuong.
-        AnimatedVisibility(
-            visible = trayExpanded,
-            enter = fadeIn(tween(TRAY_SCRIM_DURATION)),
-            exit = fadeOut(tween(TRAY_SCRIM_DURATION)),
-            modifier = Modifier.zIndex(1f)
-        ) {
-            // Lop phu khong dung o mep tren cua vung choi ma dang len het ca thanh cong cu:
-            // mo hop manh la ca man hinh toi lai, dung kieu mot bottom sheet that. Vung choi
-            // duoc ve sau thanh cong cu trong cung mot cot nen no phu duoc len tren.
-            val areaTop = with(LocalDensity.current) { areaOrigin.y.toDp() }
-            Box(
+
+        val areaTop = with(LocalDensity.current) { areaOrigin.y.toDp() }
+        Box(
+            modifier = Modifier
+                .zIndex(1f)
+                .offset(y = -areaTop)
+                .fillMaxWidth()
+                .height(LocalConfiguration.current.screenHeightDp.dp + areaTop)
+                .graphicsLayer { alpha = traySheetState.progress }
+                .background(Color.Black.copy(alpha = TRAY_SCRIM_ALPHA))
+                // Hop dong roi thi lop phu trong suot va khong nhan cham nua: ban co phia
+                // sau lai bam duoc binh thuong.
+                .then(
+                    if (trayExpanded) {
+                        Modifier.clickable(
+                            interactionSource = remember { MutableInteractionSource() },
+                            indication = null
+                        ) { onTrayExpandedChange(false) }
+                    } else {
+                        Modifier
+                    }
+                )
+        )
+
+        val releaseButton: @Composable ColumnScope.() -> Unit = {
+            Button(
+                onClick = onSelectedPiecesReleased,
+                enabled = selectedTrayPieceIds.isNotEmpty(),
                 modifier = Modifier
-                    .offset(y = -areaTop)
-                    .fillMaxWidth()
-                    .height(LocalConfiguration.current.screenHeightDp.dp + areaTop)
-                    .background(Color.Black.copy(alpha = TRAY_SCRIM_ALPHA))
-                    .clickable(
-                        interactionSource = remember { MutableInteractionSource() },
-                        indication = null
-                    ) { onTrayExpandedChange(false) }
-            )
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 4.dp, bottom = 12.dp)
+            ) {
+                Text(
+                    text = if (selectedTrayPieceIds.isEmpty()) {
+                        stringResource(R.string.action_release_none)
+                    } else {
+                        stringResource(
+                            R.string.action_release_selected,
+                            selectedTrayPieceIds.size
+                        )
+                    }
+                )
+            }
         }
 
         // Lop khay: neo duoi day man hinh va nam tren ban co, nen khay mo rong de len ban
@@ -686,13 +692,14 @@ private fun PlayArea(
                 draggedPieceId = trayDragPieceId,
                 hintPieceId = hintPieceId,
                 listState = trayListState,
-                gridState = trayGridState,
+                pieceAtlas = trayPieceAtlas,
+                barColor = boardTheme.bar,
+                iconColor = boardTheme.icon,
                 boardSizePx = baseBoardSizePx,
-                expanded = trayExpanded,
                 onExpandedChange = onTrayExpandedChange,
                 onListMeasured = { origin, size ->
-                    trayListOrigin = origin
-                    trayListSize = size
+                    trayRowOrigin = origin
+                    trayRowSize = size
                 },
                 selectedPieceIds = selectedTrayPieceIds,
                 onPieceTapped = onTrayPieceTapped,
@@ -702,8 +709,8 @@ private fun PlayArea(
                 },
                 onDragMove = { position ->
                     trayDragPosition.value = position
-                    // Manh vien keo tu khay len dung o cua no thi vao cho ngay giua duong,
-                    // khong doi nhac tay - giong het khi keo manh dang nam tren ban co.
+                    // Keo manh tu khay den gan dung o (hay gan mot manh ke ben) thi no vao
+                    // cho ngay giua duong, khong doi nhac tay.
                     val pieceId = trayDragPieceId
                     val overBoard = position.y < (trayOrigin?.y ?: Float.MAX_VALUE)
                     if (pieceId != null && boardSizePx > 0f && overBoard) {
@@ -734,39 +741,39 @@ private fun PlayArea(
                     // no van la mot tam lien mach voi canh man hinh.
                     .padding(top = 8.dp)
                     .onGloballyPositioned { trayOrigin = it.positionInRoot() },
-                // Nut dua ca nhom len ban choi: hop dang mo thi nut luon hien (con mo thi
-                // con dang chon manh), hop dong roi thi chi hien khi da cham chon manh nao
-                // do. Nut nam duoi khay cho ngon tay khong phai di xa manh vua cham.
-                footer = {
-                    if (trayExpanded || selectedTrayPieceIds.isNotEmpty()) {
-                        Button(
-                            onClick = onSelectedPiecesReleased,
-                            enabled = selectedTrayPieceIds.isNotEmpty(),
-                            modifier = Modifier
-                                .align(Alignment.CenterHorizontally)
-                                .padding(top = 4.dp, bottom = 12.dp)
-                        ) {
-                            Text(
-                                text = if (selectedTrayPieceIds.isEmpty()) {
-                                    stringResource(R.string.action_release_none)
-                                } else {
-                                    stringResource(
-                                        R.string.action_release_selected,
-                                        selectedTrayPieceIds.size
-                                    )
-                                }
-                            )
-                        }
-                    }
-                }
+                footer = { if (selectedTrayPieceIds.isNotEmpty()) releaseButton() }
             )
         }
+
+        // Hop manh nam tren cung: no de len ca khay lan lop phu lam toi man hinh.
+        JigsawTraySheet(
+            playState = playState,
+            pieces = trayPieces,
+            image = image,
+            draggedPieceId = trayDragPieceId,
+            hintPieceId = hintPieceId,
+            sheetState = traySheetState,
+            pieceAtlas = trayPieceAtlas,
+            onExpandedChange = onTrayExpandedChange,
+            boardSizePx = baseBoardSizePx,
+            gridState = trayGridState,
+            selectedPieceIds = selectedTrayPieceIds,
+            onPieceTapped = onTrayPieceTapped,
+            onListMeasured = { origin, size ->
+                traySheetOrigin = origin
+                traySheetSize = size
+            },
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .zIndex(3f),
+            footer = releaseButton
+        )
 
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                // Manh dang bay / dang keo phai o tren cung: khay mo rong khong duoc che no.
-                .zIndex(3f)
+                // Manh dang bay / dang keo phai o tren cung: hop manh khong duoc che no.
+                .zIndex(4f)
         ) {
             val trayTop = trayOrigin
             if (trayTop != null && boardSizePx > 0f) {
@@ -821,22 +828,21 @@ private fun PlayArea(
                  * Cuoi khay - dich cua manh duoc don ve. Khay dai hon man hinh thi cuoi khay nam
                  * ngoai vung thay duoc, luc do manh bay den mep phai khay roi bien vao danh sach.
                  */
-                val trayEnd = run {
+                fun trayEnd(): Offset {
                     val maxLeft = trayListSize.width - frameWidth * trayScale
                     if (trayExpanded) {
                         val last = trayGridState.layoutInfo.visibleItemsInfo.lastOrNull()
-                        trayFrameAt(
+                        return trayFrameAt(
                             left = (last?.let { (it.offset.x + it.size.width).toFloat() } ?: 0f)
                                 .coerceAtMost(maxLeft),
                             top = last?.let {
                                 it.offset.y + (it.size.height - frameHeight * trayScale) / 2f
                             }
                         )
-                    } else {
-                        val last = trayListState.layoutInfo.visibleItemsInfo.lastOrNull()
-                        val left = last?.let { (it.offset + it.size).toFloat() } ?: 0f
-                        trayFrameAt(left.coerceAtMost(maxLeft))
                     }
+                    val last = trayListState.layoutInfo.visibleItemsInfo.lastOrNull()
+                    val left = last?.let { (it.offset + it.size).toFloat() } ?: 0f
+                    return trayFrameAt(left.coerceAtMost(maxLeft))
                 }
 
                 hintPieceId?.let { flyingId ->
@@ -882,7 +888,7 @@ private fun PlayArea(
                                 margin = margin,
                                 start = boardFrameOf(placement.position),
                                 startScale = 1f,
-                                end = trayEnd,
+                                end = trayEnd(),
                                 endScale = trayScale,
                                 durationMillis = CLEAN_FLIGHT_MILLIS,
                                 delayMillis = index * CLEAN_STAGGER_MILLIS,

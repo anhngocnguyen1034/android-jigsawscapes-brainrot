@@ -7,15 +7,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
-import androidx.compose.ui.graphics.Paint
 import androidx.compose.ui.graphics.Path
-import androidx.compose.ui.graphics.asAndroidPath
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.drawscope.clipPath
-import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
 import androidx.compose.ui.graphics.drawscope.translate
-import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.IntOffset
@@ -52,7 +48,6 @@ fun JigsawPieceView(
         (minOf(cellWidth, cellHeight) * BEVEL_RATIO).coerceIn(BEVEL_MIN.toPx(), BEVEL_MAX.toPx())
     }
     val cutPx = with(density) { CUT_WIDTH.toPx() }
-    val shadowPx = with(density) { SHADOW_OFFSET.toPx() }
 
     val piecePath = remember(piece.edges, cellWidth, cellHeight, marginPx) {
         jigsawPiecePath(
@@ -83,15 +78,18 @@ fun JigsawPieceView(
             imageSlice = imageSlice,
             isPlaced = isPlaced,
             bevelPx = bevelPx,
-            cutPx = cutPx,
-            shadowPx = shadowPx
+            cutPx = cutPx
         )
     }
 }
 
 /**
  * Ve mot manh vao goc (0, 0) cua he toa do hien tai.
- * Đã sửa lỗi nguồn sáng và nâng cấp bóng đổ (Drop Shadow) mượt mà.
+ *
+ * Manh khong do bong xuong nen. Cai lam manh tach roi nhau la chinh duong bao: mot goc vat
+ * sang o phia tren-trai, toi o phia duoi-phai (nguon sang chieu tu tren-trai xuong), va mot
+ * khe toi sat ria - dung nhu hai manh bia that ke nhau. Bong do chi lam ban hinh va rat dat:
+ * ban co dang ghep do co vai chuc manh roi, moi frame deu phai ve lai tat ca.
  */
 internal fun DrawScope.drawJigsawPiece(
     image: ImageBitmap,
@@ -100,28 +98,9 @@ internal fun DrawScope.drawJigsawPiece(
     isPlaced: Boolean,
     bevelPx: Float,
     cutPx: Float,
-    shadowPx: Float,
     bevelLayers: Int = BEVEL_LAYERS
 ) {
-    // Manh chua vao o van con nam tren ban co nen do bong.
-    // Nâng cấp: Dùng BlurMaskFilter thay vì xếp lớp để bóng mềm mại và chân thực hơn.
-    if (!isPlaced) {
-        drawIntoCanvas { canvas ->
-            val paint = Paint().asFrameworkPaint().apply {
-                color = android.graphics.Color.argb((SHADOW_ALPHA * 255).toInt(), 0, 0, 0)
-                maskFilter = android.graphics.BlurMaskFilter(
-                    shadowPx * 1.5f,
-                    android.graphics.BlurMaskFilter.Blur.NORMAL
-                )
-            }
-            canvas.nativeCanvas.save()
-            canvas.nativeCanvas.translate(shadowPx, shadowPx) // Lệch chéo bóng xuống dưới-phải
-            canvas.nativeCanvas.drawPath(piecePath.asAndroidPath(), paint)
-            canvas.nativeCanvas.restore()
-        }
-    }
-
-    // Manh da vao o thi vien nhat lai, làm bức tranh liền mạch.
+    // Manh da vao o thi vien nhat lai, lam buc tranh lien mach.
     val strength = if (isPlaced) PLACED_DEPTH else 1f
     val layers = bevelLayers.coerceAtLeast(1)
 
@@ -158,7 +137,9 @@ internal fun DrawScope.drawJigsawPiece(
             }
         }
 
-        // Khe toi sat ria: mảnh ghép thật bao giờ cũng có khe giữa hai mảnh.
+        // Khe toi sat ria: hai manh bia that bao gio cung ho ra mot khe. Day la dau hieu
+        // chinh cho thay cac manh tach roi nhau, nen no hoi day hon truoc - phan viec ma
+        // bong do tung lam o ria duoi-phai gio dan het vao goc vat va khe nay.
         drawPath(
             path = piecePath,
             color = Color.Black.copy(alpha = CUT_ALPHA * strength),
@@ -172,7 +153,7 @@ internal const val BEVEL_LAYERS_BAKED = 5
 
 // Đã loại bỏ RIM_ALPHA vì nó làm bẩn màu của viền bắt sáng (Highlight).
 private const val HIGHLIGHT_ALPHA = 0.9f
-private const val EDGE_SHADOW_ALPHA = 0.5f
+private const val EDGE_SHADOW_ALPHA = 0.6f
 private const val BEVEL_WIDTH_RATIO = 2f
 
 /** Khe toi sat giua hai manh. */
@@ -233,12 +214,8 @@ internal const val BEVEL_RATIO = 0.012f
 internal val BEVEL_MIN = 0.5.dp
 internal val BEVEL_MAX = 1.2.dp
 
-/** Khe cắt đã được tinh chỉnh thanh mảnh hơn. */
-internal val CUT_WIDTH = 0.4.dp
-
-/** Bóng đổ được điều chỉnh cho BlurMaskFilter */
-private val SHADOW_OFFSET = 3.dp
-private const val SHADOW_ALPHA = 0.35f
+/** Be rong khe cat giua hai manh. Nua trong cua net ve nam trong manh nen chi thay mot nua. */
+internal val CUT_WIDTH = 0.55.dp
 
 /** Độ sâu khi đã đặt vào bàn cờ giảm xuống để bức tranh phẳng, liền mạch hơn */
 internal const val PLACED_DEPTH = 0.75f

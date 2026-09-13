@@ -409,14 +409,44 @@ class PuzzlePlayStateTest {
     }
 
     @Test
-    fun `should not pull an inner piece while it is dragged out of the tray`() {
+    fun `should pull an inner piece into its slot while it is dragged out of the tray`() {
         val state = newTrayState()
         val piece = puzzle.pieces.first { it.row == 1 && it.col == 1 }
         val target = state.targetOf(piece)
 
-        assertNull(
-            state.trayDragSnapOffset(piece.id, PieceOffset(target.x + 0.02f, target.y - 0.02f))
+        val snap = state.trayDragSnapOffset(
+            piece.id,
+            PieceOffset(target.x + 0.02f, target.y - 0.02f)
         )
+
+        assertEquals(-0.02f, snap!!.x, TOLERANCE)
+        assertEquals(0.02f, snap.y, TOLERANCE)
+    }
+
+    @Test
+    fun `should pull a piece out of the tray onto a neighbour lying loose on the board`() {
+        val tray = newTrayState()
+        val neighbour = puzzle.pieces.first { it.row == 1 && it.col == 0 }
+        val piece = puzzle.pieces.first { it.row == 1 && it.col == 1 }
+        // Manh ke ben nam roi giua ban co, xa o dung cua no.
+        val state = tray.copy(
+            placements = tray.placements + (
+                neighbour.id to tray.placements
+                    .getValue(neighbour.id)
+                    .copy(position = LOOSE_SPOT, isInTray = false)
+                ),
+            trayOrder = tray.trayOrder - neighbour.id
+        )
+        // Cho dang nham toi: ngay ben phai manh ke ben, con lech 0.02.
+        val spot = PieceOffset(
+            x = LOOSE_SPOT.x + 1f / puzzle.difficulty.cols + 0.02f,
+            y = LOOSE_SPOT.y
+        )
+
+        val snap = state.trayDragSnapOffset(piece.id, spot)
+
+        assertEquals(-0.02f, snap!!.x, TOLERANCE)
+        assertEquals(0f, snap.y, TOLERANCE)
     }
 
     @Test

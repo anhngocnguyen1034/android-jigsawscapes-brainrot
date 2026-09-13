@@ -1,8 +1,12 @@
 package com.nnastudio.jigsawpuzzlebrainrot.presentation.components
 
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.VectorConverter
+import androidx.compose.animation.core.animate
 import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
@@ -16,6 +20,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
@@ -26,6 +31,7 @@ import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.pointer.PointerInputScope
 import androidx.compose.ui.input.pointer.pointerInput
@@ -37,12 +43,18 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.DpOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
+import com.nnastudio.jigsawpuzzlebrainrot.domain.models.BoardBackground
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PieceBounds
 import com.nnastudio.jigsawpuzzlebrainrot.domain.models.PuzzlePlayState
-import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.AnhnnTheme
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.BoardTheme
+import com.nnastudio.jigsawpuzzlebrainrot.presentation.theme.theme
 
 /** Goc bo tron cua khung ban co. */
-private val BOARD_CORNER = 12.dp
+/** Le hai ben cua khung ghep, do bang le cua thanh cong cu de hai thu thang hang. */
+private val BOARD_SIDE_MARGIN = 12.dp
+
+/** Do day net vien cua khung ghep. */
+private val BOARD_BORDER = 1.5.dp
 
 /**
  * Ngon tay phai di qua ngan nay thi moi tinh la keo manh (thay cho touch slop he thong, von
@@ -63,8 +75,11 @@ private val PIECE_POP_SPEC = spring<Float>(
     stiffness = Spring.StiffnessMediumLow
 )
 
-/** Do duc cua khung ban co: du de thay ranh gioi o ghep, van nhin xuyen ra mau nen. */
-private const val BOARD_ALPHA = 0.32f
+/**
+ * Nhip truot cua manh khi vi tri that cua no doi: du cham de nhin ra manh hut vao o, du
+ * nhanh de khong tre lai sau ngon tay.
+ */
+private val PIECE_SETTLE_SPEC = tween<Offset>(180, easing = FastOutSlowInEasing)
 
 /** Zoom ban co toi da: du to de ghep luoi 8x8 tren may nho, chua den muc mat huong nhin chung. */
 private const val MAX_BOARD_ZOOM = 3f
@@ -154,6 +169,8 @@ fun JigsawBoardView(
     /** Manh vien vua hut vao o giua luc keo: dat va khoa no ngay, luot keo ket thuc. */
     onPieceDragSnap: (pieceId: Int, dx: Float, dy: Float) -> Unit,
     onPieceDragEnd: (pieceId: Int, dx: Float, dy: Float, finger: Offset) -> Unit,
+    /** Mau khung ghep, lay tu bang mau cua nen ban choi nguoi choi dang chon. */
+    boardColors: BoardTheme = BoardBackground.DEFAULT.theme(),
     modifier: Modifier = Modifier
 ) {
     val rows = playState.puzzle.difficulty.rows
@@ -162,11 +179,40 @@ fun JigsawBoardView(
     val draggingGroup = draggingPieceId?.let(playState::groupOf)
     val lastMovedGroup = lastMovedPieceId?.let(playState::groupOf)
     val draggingGroupSize = draggingGroup?.let { playState.groupMembers(it).size } ?: 0
+    // Thu tu de len nhau cua cac manh roi: khoi nao vua duoc dong den thi len tren cung va
+    // nam nguyen do cho den khi chinh no bi dong den lai.
+    //
+    // Chi cho rieng "khoi vua di" noi len thi khong du: buong tay ra, dong sang mot manh
+    // thu ba la khoi vua di tut ve thu tu goc (thu tu cat manh), nen hai manh dang de len
+    // nhau tu dung doi cho cho nhau du nguoi choi khong cham vao chung.
+    val stackOrder = remember(playState.puzzle) { mutableStateListOf<Int>() }
+    val bumpedGroup = draggingGroup ?: lastMovedGroup
+    LaunchedEffect(bumpedGroup) {
+        if (bumpedGroup != null) {
+            stackOrder.remove(bumpedGroup)
+            stackOrder.add(bumpedGroup)
+        }
+    }
+    // Manh chua duoc dong den nam duoi cung (1f), cac khoi da dong den xep dan len theo
+    // dung thu tu tren - tat ca van duoi khoi dang keo (3f).
+    val stackZ = stackOrder.withIndex().associate { (index, group) ->
+        group to 1f + (index + 1f) / (stackOrder.size + 1f)
+    }
     // Doan da keo, tinh bang px, chi doc trong lambda cua graphicsLayer.
     val dragOffset = remember { mutableStateOf(Offset.Zero) }
     // Cu keo xong la ViewModel bao lai vi tri that; luc do moi bo doan keo tam.
     LaunchedEffect(draggingPieceId) {
         if (draggingPieceId == null) dragOffset.value = Offset.Zero
+    }
+    // Luot vua buong tay: cac manh cua khoi do va doan da keo duoc cua chung. State ve toi
+    // thi manh khong con nam o cho ngon tay nua, phai co hai gia tri nay moi biet manh dang
+    // dung o dau tren man hinh de truot not doan cuoi.
+    val releasedPieces = remember { mutableStateOf(emptySet<Int>()) }
+    val releasedOffset = remember { mutableStateOf(Offset.Zero) }
+    // Doan keo da duoc tinh vao cho moi cua manh roi thi quen di, khong lan sang lan sau.
+    LaunchedEffect(playState.placements) {
+        releasedPieces.value = emptySet()
+        releasedOffset.value = Offset.Zero
     }
     // Gesture khong duoc khoi dong lai moi lan state doi nen phai doc state qua bien nay.
     val latestState = rememberUpdatedState(playState)
@@ -197,7 +243,12 @@ fun JigsawBoardView(
             }
     ) {
         val density = LocalDensity.current
-        val baseBoard = minOf(maxWidth, maxHeight)
+        // Khung chua bao gio cham hai mep may: chua doan le de no ra dang mot cai khay
+        // dat tren ban choi. Le chi tru vao be ngang - be cao da co khay manh chan duoi.
+        val baseBoard = minOf(
+            (maxWidth - BOARD_SIDE_MARGIN * 2).coerceAtLeast(0.dp),
+            maxHeight
+        )
         val boardSize = baseBoard * zoom
         val panDp = with(density) { DpOffset(pan.x.toDp(), pan.y.toDp()) }
         val boardLeft = (maxWidth - boardSize) / 2 + panDp.x
@@ -225,7 +276,6 @@ fun JigsawBoardView(
         // vung choi thi rang buoc layout cua cha se kep kich thuoc cua Box lai, con net ve
         // thi khong - no chi bi cat o mep vung choi dung nhu mong doi.
         // Khung ban co cung trong mot phan: doi mau nen ban choi la thay doi ca o day.
-        val boardColor = AnhnnTheme.extraColors.boardSlot.copy(alpha = BOARD_ALPHA)
         val boardLeftPx = with(density) { boardLeft.toPx() }
         val boardTopPx = with(density) { boardTop.toPx() }
         var areaRoot by remember { mutableStateOf(Offset.Zero) }
@@ -235,11 +285,23 @@ fun JigsawBoardView(
                 .fillMaxSize()
                 .onGloballyPositioned { areaRoot = it.positionInRoot() }
         ) {
+            val topLeft = Offset(boardLeftPx, boardTopPx)
+            val size = Size(boardSizePx, boardSizePx)
+            // Bo goc dung bang bo goc cua manh: bon goc ngoai cua buc anh cong dung
+            // mot duong nhu nhau nen manh vao o la khit hep voi khung.
+            val corner = CornerRadius(boardSizePx * CORNER_RADIUS_RATIO)
             drawRoundRect(
-                color = boardColor,
-                topLeft = Offset(boardLeftPx, boardTopPx),
-                size = Size(boardSizePx, boardSizePx),
-                cornerRadius = CornerRadius(BOARD_CORNER.toPx())
+                color = boardColors.slot,
+                topLeft = topLeft,
+                size = size,
+                cornerRadius = corner
+            )
+            drawRoundRect(
+                color = boardColors.slotBorder,
+                topLeft = topLeft,
+                size = size,
+                cornerRadius = corner,
+                style = Stroke(width = BOARD_BORDER.toPx())
             )
         }
 
@@ -271,6 +333,36 @@ fun JigsawBoardView(
             }
             val group = playState.groupOf(piece.id)
             val isDraggingGroup = draggingGroup != null && group == draggingGroup
+            // Doan bu giua cho manh dang dung tren man hinh va cho that cua no (toa do ban
+            // co). Vi tri that vua doi thi doan nay dung bang doan chenh - manh van dung im
+            // - roi truot ve 0: manh hut vao o bang mot nhip truot chu khong nhay cai.
+            val settle = remember(piece.id) { mutableStateOf(Offset.Zero) }
+            val shownAt = remember(piece.id) { mutableStateOf(placement.position) }
+            if (shownAt.value != placement.position) {
+                // Vua buong tay thi manh dang o cho ngon tay tha chu khong o cho cu.
+                val carried = if (piece.id in releasedPieces.value && boardSizePx > 0f) {
+                    Offset(
+                        releasedOffset.value.x / boardSizePx,
+                        releasedOffset.value.y / boardSizePx
+                    )
+                } else {
+                    settle.value
+                }
+                settle.value = Offset(
+                    shownAt.value.x + carried.x - placement.position.x,
+                    shownAt.value.y + carried.y - placement.position.y
+                )
+                shownAt.value = placement.position
+            }
+            LaunchedEffect(placement.position) {
+                if (settle.value == Offset.Zero) return@LaunchedEffect
+                animate(
+                    typeConverter = Offset.VectorConverter,
+                    initialValue = settle.value,
+                    targetValue = Offset.Zero,
+                    animationSpec = PIECE_SETTLE_SPEC
+                ) { value, _ -> settle.value = value }
+            }
             JigsawPieceView(
                 piece = piece,
                 image = image,
@@ -286,9 +378,7 @@ fun JigsawBoardView(
                         when {
                             isDraggingGroup -> 3f
                             placement.isPlaced -> 0f
-                            // Khoi vua duoc thao tac nam tren cac manh roi khac.
-                            lastMovedGroup != null && group == lastMovedGroup -> 2f
-                            else -> 1f
+                            else -> stackZ[group] ?: 1f
                         }
                     )
                     .offset(
@@ -335,10 +425,14 @@ fun JigsawBoardView(
                                             dragOffset.value = total
                                             return false
                                         }
-                                        // Ve thang vao o roi chot luon: manh vien vao dung
-                                        // cho la coi nhu xong, khong keo di duoc nua.
-                                        dragOffset.value = total +
-                                            Offset(snap.x * boardSizePx, snap.y * boardSizePx)
+                                        // Chot luon: manh vien vao dung cho la coi nhu
+                                        // xong, khong keo di duoc nua. Manh van dang o cho
+                                        // ngon tay - doan hut con lai do lop ve truot not
+                                        // (xem "settle" ben duoi) chu khong nhay cai vao o.
+                                        dragOffset.value = total
+                                        releasedPieces.value = latestState.value
+                                            .groupMembers(latestState.value.groupOf(piece.id))
+                                        releasedOffset.value = total
                                         snapped = true
                                         onPieceDragSnap(piece.id, dx, dy)
                                         return true
@@ -381,6 +475,9 @@ fun JigsawBoardView(
                                     // Node nhan gesture dung yen nen diem ngon tay = diem an
                                     // xuong cong ca doan da keo.
                                     val finger = startFinger + total
+                                    releasedPieces.value = latestState.value
+                                        .groupMembers(latestState.value.groupOf(piece.id))
+                                    releasedOffset.value = total
                                     onPieceDragEnd(
                                         piece.id,
                                         total.x / boardSizePx,
@@ -397,6 +494,9 @@ fun JigsawBoardView(
                         if (isDraggingGroup) {
                             translationX = dragOffset.value.x
                             translationY = dragOffset.value.y
+                        } else {
+                            translationX = settle.value.x * boardSizePx
+                            translationY = settle.value.y * boardSizePx
                         }
                         // Chi phong to manh don le; phong to tung manh cua mot khoi se lam
                         // cac manh trong khoi bi ho ra.

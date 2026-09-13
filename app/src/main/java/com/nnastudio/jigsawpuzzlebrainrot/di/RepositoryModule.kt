@@ -6,12 +6,14 @@ import com.nnastudio.jigsawpuzzlebrainrot.data.repository.PuzzleImageRepositoryI
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.PuzzleRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.SavedGameRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.data.repository.SettingsRepositoryImpl
+import com.nnastudio.jigsawpuzzlebrainrot.data.repository.WalletRepositoryImpl
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.FavoriteRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.ProgressRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.PuzzleImageRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.PuzzleRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.SavedGameRepository
 import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.SettingsRepository
+import com.nnastudio.jigsawpuzzlebrainrot.domain.repository.WalletRepository
 import dagger.Binds
 import dagger.Module
 import dagger.hilt.InstallIn
@@ -45,4 +47,8 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindFavoriteRepository(impl: FavoriteRepositoryImpl): FavoriteRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindWalletRepository(impl: WalletRepositoryImpl): WalletRepository
 }

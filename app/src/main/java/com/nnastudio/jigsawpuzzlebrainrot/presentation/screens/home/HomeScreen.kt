@@ -37,6 +37,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -54,7 +55,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -104,12 +104,11 @@ fun HomeScreen(
 
     HomeContent(
         modifier = Modifier
-            // Thanh he thong dang bi an cho ca app, nhung cho status bar co the la notch /
-            // camera nen van chua cho no. Phan nav bar duoi thi dung duoc het.
             .windowInsetsPadding(WindowInsets.statusBarsIgnoringVisibility),
         uiState = uiState,
         onPuzzleClick = { puzzleId -> onPuzzleClick(puzzleId, PUZZLE_DIFFICULTY) },
         onCategorySelected = viewModel::onCategorySelected,
+        onUnlockPuzzle = viewModel::onUnlockPuzzle,
         onSettingsClick = onSettingsClick
     )
 }
@@ -126,24 +125,29 @@ private fun HomeContent(
     uiState: HomeUiState,
     onPuzzleClick: (String) -> Unit,
     onCategorySelected: (PuzzleCategory?) -> Unit,
+    onUnlockPuzzle: (String) -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     var tab by remember { mutableStateOf(HomeTab.DISCOVER) }
-    // Giu o day chu khong trong MineTab: mo mot bo suu tap la MineTab roi khoi cay giao
-    // dien, quay lai phai ve dung muc cu chu khong nhay ve "dang tien hanh".
     var minePage by remember { mutableStateOf(MineTabPage.ONGOING) }
+    // Buc khoa vua bam vao: man hinh hoi mua bang diem thay vi mo thang van choi.
+    var pendingUnlock by remember { mutableStateOf<PuzzleImage?>(null) }
+
+    // Moi cho bam vao mot buc anh deu di qua day: buc con khoa thi hien hop mua diem.
+    val onCardClick: (String) -> Unit = { puzzleId ->
+        val locked = uiState.allPuzzles
+            .firstOrNull { it.id == puzzleId && it.id in uiState.lockedPuzzleIds }
+        if (locked != null) pendingUnlock = locked else onPuzzleClick(puzzleId)
+    }
 
     Column(modifier = modifier.fillMaxSize()) {
         HomeTopBar(
             category = uiState.selectedCategory,
+            points = uiState.points,
             onClearCategory = { onCategorySelected(null) },
             onSettingsClick = onSettingsClick
         )
-
-        // Thanh dieu huong noi tren noi dung chu khong chiem mot dai rieng o day man hinh:
-        // anh o duoi cung van tran qua sau the, chi can chua san cho o cuoi cac danh sach
-        // ([NAV_BAR_SPACE]) de muc cuoi khong bi the che mat.
         Box(modifier = Modifier.weight(1f)) {
             when {
                 uiState.isLoading -> Box(
@@ -161,7 +165,9 @@ private fun HomeContent(
                     puzzles = uiState.puzzles,
                     progressPercent = uiState.progressPercent,
                     bestScore = uiState.bestScore,
-                    onPuzzleClick = onPuzzleClick
+                    lockedIds = uiState.lockedPuzzleIds,
+                    unlockPrice = uiState.unlockPrice,
+                    onPuzzleClick = onCardClick
                 )
 
                 // Doi tab thi noi dung mo dan vao nhau thay vi thay thang, cung nhip voi
@@ -174,17 +180,17 @@ private fun HomeContent(
                     when (current) {
                         HomeTab.DISCOVER -> DiscoverTab(
                             uiState = uiState,
-                            onPuzzleClick = onPuzzleClick,
+                            onPuzzleClick = onCardClick,
                             onSeeAll = onCategorySelected
                         )
 
-                        HomeTab.DAILY -> DailyTab(uiState = uiState, onPuzzleClick = onPuzzleClick)
+                        HomeTab.DAILY -> DailyTab(uiState = uiState, onPuzzleClick = onCardClick)
 
                         HomeTab.MINE -> MineTab(
                             uiState = uiState,
                             page = minePage,
                             onPageSelected = { minePage = it },
-                            onPuzzleClick = onPuzzleClick
+                            onPuzzleClick = onCardClick
                         )
                     }
                 }
@@ -193,7 +199,6 @@ private fun HomeContent(
             HomeNavigationBar(
                 selected = tab,
                 onSelect = { selected ->
-                    // Doi tab thi bo bo loc dang mo, khong thi tab nao cung ra cung mot luoi.
                     onCategorySelected(null)
                     tab = selected
                 },
@@ -201,11 +206,74 @@ private fun HomeContent(
             )
         }
     }
+
+    pendingUnlock?.let { puzzle ->
+        UnlockDialog(
+            puzzle = puzzle,
+            price = uiState.unlockPrice,
+            points = uiState.points,
+            missingPoints = uiState.missingPoints,
+            onConfirm = {
+                onUnlockPuzzle(puzzle.id)
+                pendingUnlock = null
+            },
+            onDismiss = { pendingUnlock = null }
+        )
+    }
+}
+
+/**
+ * Hop hoi mua mot buc khoa bang diem. Chua du diem thi nut mua tat di va loi nhan noi ro
+ * con thieu bao nhieu - nguoi choi biet phai ghep them chung nao chu khong chi bi tu choi.
+ *
+ * Mua xong buc anh chi het khoa; nguoi choi van tu bam vao no de bat dau van, khong bi day
+ * thang vao man choi ngay sau khi tra diem.
+ */
+@Composable
+private fun UnlockDialog(
+    puzzle: PuzzleImage,
+    price: Int,
+    points: Int,
+    missingPoints: Int,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val affordable = missingPoints == 0
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(text = stringResource(R.string.unlock_title)) },
+        text = {
+            Text(
+                text = if (affordable) {
+                    stringResource(R.string.unlock_message, puzzle.title, price, points)
+                } else {
+                    stringResource(
+                        R.string.unlock_not_enough,
+                        puzzle.title,
+                        price,
+                        points,
+                        missingPoints
+                    )
+                }
+            )
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm, enabled = affordable) {
+                Text(text = stringResource(R.string.action_unlock))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.action_later))
+            }
+        }
+    )
 }
 
 @Composable
 private fun HomeTopBar(
     category: PuzzleCategory?,
+    points: Int,
     onClearCategory: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
@@ -227,13 +295,46 @@ private fun HomeTopBar(
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
         )
-        IconButton(onClick = onSettingsClick) {
-            Icon(
-                painter = painterResource(R.drawable.ic_settings),
-                contentDescription = stringResource(R.string.action_settings),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            PointsBadge(points = points)
+            IconButton(onClick = onSettingsClick) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_settings),
+                    contentDescription = stringResource(R.string.action_settings),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
         }
+    }
+}
+
+/** So diem dang co, o goc tren-phai: day la thu de mua nhung buc con khoa. */
+@Composable
+private fun PointsBadge(points: Int) {
+    val label = stringResource(R.string.home_points_label)
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(AnhnnGradients.primaryHorizontal())
+            .padding(horizontal = 10.dp, vertical = 4.dp)
+            // Doc mot lan la "Diem cua ban: 1234", khong doc roi icon va so.
+            .clearAndSetSemantics {
+                contentDescription = "$label: $points"
+            }
+    ) {
+        Icon(
+            painter = painterResource(R.drawable.ic_point),
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(POINTS_ICON_SIZE)
+        )
+        Text(
+            text = stringResource(R.string.home_points, points),
+            style = MaterialTheme.typography.labelLarge,
+            color = Color.White
+        )
     }
 }
 
@@ -244,11 +345,15 @@ private fun DiscoverTab(
     onPuzzleClick: (String) -> Unit,
     onSeeAll: (PuzzleCategory) -> Unit
 ) {
+    val lockedIds = uiState.lockedPuzzleIds
+    val unlockPrice = uiState.unlockPrice
     Column(modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
         uiState.dailyPuzzle?.let { daily ->
             DailyPuzzleCard(
                 puzzle = daily,
                 progressPercent = uiState.progressPercent[daily.id],
+                locked = daily.id in lockedIds,
+                price = unlockPrice,
                 onClick = { onPuzzleClick(daily.id) },
                 modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
             )
@@ -260,6 +365,8 @@ private fun DiscoverTab(
                 puzzles = uiState.inProgress,
                 progressPercent = uiState.progressPercent,
                 bestScore = uiState.bestScore,
+                lockedIds = lockedIds,
+                unlockPrice = unlockPrice,
                 onPuzzleClick = onPuzzleClick
             )
         }
@@ -277,6 +384,8 @@ private fun DiscoverTab(
                 puzzles = puzzles,
                 progressPercent = uiState.progressPercent,
                 bestScore = uiState.bestScore,
+                lockedIds = lockedIds,
+                unlockPrice = unlockPrice,
                 onPuzzleClick = onPuzzleClick
             )
         }
@@ -310,6 +419,8 @@ private fun DailyTab(uiState: HomeUiState, onPuzzleClick: (String) -> Unit) {
         DailyPuzzleCard(
             puzzle = daily,
             progressPercent = uiState.progressPercent[daily.id],
+            locked = daily.id in uiState.lockedPuzzleIds,
+            price = uiState.unlockPrice,
             onClick = { onPuzzleClick(daily.id) },
             modifier = Modifier.padding(vertical = 12.dp)
         )
@@ -348,6 +459,8 @@ private fun MineTab(
                 puzzles = uiState.inProgress,
                 progressPercent = uiState.progressPercent,
                 bestScore = uiState.bestScore,
+                lockedIds = uiState.lockedPuzzleIds,
+                unlockPrice = uiState.unlockPrice,
                 emptyText = stringResource(R.string.home_empty_mine),
                 onPuzzleClick = onPuzzleClick
             )
@@ -356,6 +469,8 @@ private fun MineTab(
                 puzzles = uiState.completed,
                 progressPercent = uiState.progressPercent,
                 bestScore = uiState.bestScore,
+                lockedIds = uiState.lockedPuzzleIds,
+                unlockPrice = uiState.unlockPrice,
                 emptyText = stringResource(R.string.home_empty_done),
                 onPuzzleClick = onPuzzleClick
             )
@@ -364,6 +479,8 @@ private fun MineTab(
                 puzzles = uiState.favorites,
                 progressPercent = uiState.progressPercent,
                 bestScore = uiState.bestScore,
+                lockedIds = uiState.lockedPuzzleIds,
+                unlockPrice = uiState.unlockPrice,
                 emptyText = stringResource(R.string.home_empty_favorites),
                 onPuzzleClick = onPuzzleClick
             )
@@ -383,6 +500,8 @@ private fun PuzzleGridOrEmpty(
     puzzles: List<PuzzleImage>,
     progressPercent: Map<String, Int>,
     bestScore: Map<String, Int>,
+    lockedIds: Set<String>,
+    unlockPrice: Int,
     emptyText: String,
     onPuzzleClick: (String) -> Unit
 ) {
@@ -399,6 +518,8 @@ private fun PuzzleGridOrEmpty(
         puzzles = puzzles,
         progressPercent = progressPercent,
         bestScore = bestScore,
+        lockedIds = lockedIds,
+        unlockPrice = unlockPrice,
         onPuzzleClick = onPuzzleClick
     )
 }
@@ -429,6 +550,8 @@ private fun PuzzleRow(
     puzzles: List<PuzzleImage>,
     progressPercent: Map<String, Int>,
     bestScore: Map<String, Int>,
+    lockedIds: Set<String>,
+    unlockPrice: Int,
     onPuzzleClick: (String) -> Unit
 ) {
     LazyRow(
@@ -441,6 +564,8 @@ private fun PuzzleRow(
                 onClick = { onPuzzleClick(puzzle.id) },
                 progressPercent = progressPercent[puzzle.id],
                 score = bestScore[puzzle.id],
+                locked = puzzle.id in lockedIds,
+                price = unlockPrice,
                 modifier = Modifier.width(ROW_CARD_WIDTH)
             )
         }
@@ -452,6 +577,8 @@ private fun PuzzleGrid(
     puzzles: List<PuzzleImage>,
     progressPercent: Map<String, Int>,
     bestScore: Map<String, Int>,
+    lockedIds: Set<String>,
+    unlockPrice: Int,
     onPuzzleClick: (String) -> Unit
 ) {
     LazyVerticalGrid(
@@ -470,7 +597,9 @@ private fun PuzzleGrid(
                 puzzle = puzzle,
                 onClick = { onPuzzleClick(puzzle.id) },
                 progressPercent = progressPercent[puzzle.id],
-                score = bestScore[puzzle.id]
+                score = bestScore[puzzle.id],
+                locked = puzzle.id in lockedIds,
+                price = unlockPrice
             )
         }
     }
@@ -484,6 +613,9 @@ private fun PuzzleGrid(
 private fun DailyPuzzleCard(
     puzzle: PuzzleImage,
     progressPercent: Int?,
+    /** Buc con khoa: anh bi lam toi va nhan "hom nay" doi thanh gia mo khoa. */
+    locked: Boolean,
+    price: Int,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -501,17 +633,41 @@ private fun DailyPuzzleCard(
             contentScale = ContentScale.Crop,
             modifier = Modifier.fillMaxSize()
         )
-        Text(
-            text = stringResource(R.string.home_daily_badge),
-            style = MaterialTheme.typography.labelSmall,
-            color = Color.White,
+        if (locked) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = SCRIM_ALPHA))
+            )
+        }
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
             modifier = Modifier
                 .align(Alignment.TopStart)
                 .padding(12.dp)
                 .clip(RoundedCornerShape(8.dp))
                 .background(AnhnnGradients.primaryHorizontal())
                 .padding(horizontal = 8.dp, vertical = 4.dp)
-        )
+        ) {
+            if (locked) {
+                Icon(
+                    painter = painterResource(R.drawable.ic_lock),
+                    contentDescription = stringResource(R.string.card_locked),
+                    tint = Color.White,
+                    modifier = Modifier.size(POINTS_ICON_SIZE)
+                )
+            }
+            Text(
+                text = if (locked) {
+                    stringResource(R.string.home_points, price)
+                } else {
+                    stringResource(R.string.home_daily_badge)
+                },
+                style = MaterialTheme.typography.labelSmall,
+                color = Color.White
+            )
+        }
         if (progressPercent != null) {
             Text(
                 text = "$progressPercent%",
@@ -608,11 +764,6 @@ private fun HomeNavigationItem(
         transitionSpec = { spring(dampingRatio = Spring.DampingRatioMediumBouncy) },
         label = "scale"
     ) { isSelected -> if (isSelected) NAV_ICON_SELECTED_SCALE else 1f }
-    val labelAlpha by transition.animateFloat(
-        transitionSpec = { tween(NAV_ANIM_MILLIS) },
-        label = "labelAlpha"
-    ) { isSelected -> if (isSelected) 1f else 0f }
-
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center,
@@ -641,9 +792,7 @@ private fun HomeNavigationItem(
             color = color,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier
-                .padding(top = 2.dp)
-                .graphicsLayer { alpha = labelAlpha }
+            modifier = Modifier.padding(top = 2.dp)
         )
     }
 }
@@ -674,6 +823,9 @@ private const val NAV_ANIM_MILLIS = 220
 
 /** Be ngang cua the anh trong hang ngang. */
 private val ROW_CARD_WIDTH = 148.dp
+
+/** Canh cua ngoi sao diem o goc tren-phai va cua o khoa tren the anh cua ngay. */
+private val POINTS_ICON_SIZE = 14.dp
 
 /** Ti le the anh cua ngay. */
 private const val DAILY_ASPECT = 16f / 10f
