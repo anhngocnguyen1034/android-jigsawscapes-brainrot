@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "274837946710",
+    "project_id": "jigsaw-puzzle-brainrot",
+    "storage_bucket": "jigsaw-puzzle-brainrot.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:274837946710:android:b12ca9626a29a8df5b56f7",
+        "android_client_info": {
+          "package_name": "com.nnastudio.jigsawpuzzlebrainrot"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC8Hn1FK10TWX2o3JkaJYeCQ1RVKv4gscs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
