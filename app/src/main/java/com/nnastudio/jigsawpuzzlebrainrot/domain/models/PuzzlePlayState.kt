@@ -289,22 +289,28 @@ data class PuzzlePlayState(
      * do tren ban co nen cho dang nham toi ([position], toa do ban co cua goc tren-trai o)
      * duoc dua vao thay cho vi tri hien tai.
      *
-     * Nho vay manh vien hut vao o ngay giua duong keo tu khay len, khong doi nguoi choi tha
-     * xuong ban co roi kem theo mot luot keo thu hai.
+     * Keo tu khay thi manh nao cung duoc hut, ke ca manh trong long buc anh: nguoi choi vua
+     * nhac manh tu danh sach len va dang nham vao mot cho cu the, nen dua no den gan dung o
+     * hay gan mot manh ke ben la vao cho luon - khong phai tha xuong ban co roi keo them mot
+     * luot thu hai. Thu tu uu tien giong [dropPiece]: o cua manh goc truoc, roi den manh ke
+     * ben, cuoi cung la o cua chinh no.
      */
     fun trayDragSnapOffset(
         pieceId: Int,
         position: PieceOffset,
         snapThreshold: Float = this.snapThreshold
     ): PieceOffset? {
-        if (placements[pieceId]?.isInTray != true) return null
-        if (!isEdgePiece(pieceId)) return null
-        val piece = puzzle.pieces.firstOrNull { it.id == pieceId } ?: return null
-        val target = targetOf(piece)
-        val dx = target.x - position.x
-        val dy = target.y - position.y
-        if (hypot(dx, dy) > boardSnapThresholdOf(pieceId, snapThreshold)) return null
-        return PieceOffset(dx, dy)
+        val placement = placements[pieceId] ?: return null
+        if (!placement.isInTray) return null
+        val members = setOf(pieceId)
+        // Manh trong khay van giu toa do cu (khong co y nghia), nen hoi cho hut bang doan
+        // lech tu toa do do den cho dang nham toi thay vi dat that manh len ban co truoc.
+        val offset = position - placement.position
+        val fit = findBoardFit(members, snapThreshold, offset)?.takeIf { it.isCorner }
+            ?: findNeighbourFit(members, snapThreshold, offset)
+            ?: findBoardFit(members, snapThreshold, offset)
+            ?: return null
+        return PieceOffset(fit.dx, fit.dy)
     }
 
     /**
