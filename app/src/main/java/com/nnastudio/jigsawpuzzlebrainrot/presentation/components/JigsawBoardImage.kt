@@ -84,8 +84,6 @@ suspend fun renderSolvedBoard(
                         isPlaced = true,
                         bevelPx = bevelPx,
                         cutPx = cutPx,
-                        // Manh da vao o het nen khong manh nao do bong xuong manh nao.
-                        shadowPx = 0f,
                         // Ve mot lan roi de danh nen goc vat duoc lam muot han ban co.
                         bevelLayers = BEVEL_LAYERS_BAKED
                     )
